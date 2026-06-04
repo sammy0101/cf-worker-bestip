@@ -238,7 +238,7 @@ export default {
     <div class="container">
         <div class="header">
             <div class="header-content"><h1>Cloudflare 優選 IP 測速平台</h1><p>V3.4.0</p></div>
-            <div><a href="https://github.com/sammy0101/CF-Worker-BestIP-collector" target="_blank" class="social-link">GitHub</a></div>
+            <div><a href="https://github.com/sammy0101/cf-worker-bestip" target="_blank" class="social-link">GitHub</a></div>
         </div>
 
         <!-- 儀表板區域 -->
