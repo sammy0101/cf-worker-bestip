@@ -233,8 +233,7 @@ export default {
 
     <div class="container">
         <div class="header">
-            <div class="header">
-    <div class="header-content"><h1>Cloudflare 優選 IP 測速平台</h1><p>${VERSION}</p></div>
+            <div class="header-content"><h1>Cloudflare 優選 IP 測速平台</h1><p>${VERSION}</p></div>
             <div><a href="https://github.com/sammy0101/cf-worker-bestip" target="_blank" class="social-link">GitHub</a></div>
         </div>
 
@@ -389,7 +388,6 @@ export default {
                     if(tokenIn) tokenIn.value = tokenConfig.token;
                 }
             }
-
         });
 
         function addLog(msg, type='normal') {
