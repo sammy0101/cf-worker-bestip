@@ -1,0 +1,19 @@
+name: Deploy Worker
+
+on:
+  push:
+    branches:
+      - main  # 當 main 分支有代碼推送時觸發部署（如果您的預設分支是 master，請改為 master）
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Cloudflare
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
