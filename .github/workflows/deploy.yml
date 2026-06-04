@@ -3,7 +3,7 @@ name: Deploy Worker
 on:
   push:
     branches:
-      - main  # 當 main 分支有代碼推送時觸發部署（如果您的預設分支是 master，請改為 master）
+      - main  # 如果您的預設分支是 master，請改為 master
 
 jobs:
   deploy:
@@ -13,7 +13,14 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # 步驟：在部署前，將 wrangler.toml 中的佔位符替換為 GitHub Secrets 裡的值
+      - name: Replace KV ID in wrangler.toml
+        run: |
+          sed -i 's/KV_ID_PLACEHOLDER/${{ secrets.CF_KV_ID }}/g' wrangler.toml
+
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # 選擇性提供：帶入 Account ID（若有多個帳戶建議設定）
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
