@@ -3,7 +3,8 @@ name: Deploy Worker
 on:
   push:
     branches:
-      - main  # 如果您的預設分支是 master，請改為 master
+      - main  # 當 main 分支有代碼推送時自動觸發
+  workflow_dispatch:  # 允許在 GitHub 網頁上手動點擊執行部署
 
 jobs:
   deploy:
