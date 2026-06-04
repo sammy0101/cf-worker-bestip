@@ -1,4 +1,4 @@
-const VERSION = "V3.5.0"; // 系統版本號，修改此處即可同步更新網頁顯示
+const VERSION = "V3.5.1"; // 系統版本號，修改此處即可同步更新網頁顯示
 
 // --- 設定區域 ---
 const FAST_IP_COUNT = 25; // 優質 IP 數量
@@ -42,7 +42,7 @@ const CIDR_SOURCE_URLS =[
 const COLO_MAP = {
     'HKG': '香港', 'TPE': '台北', 'NRT': '東京', 'KIX': '大阪', 'ICN': '首爾', 'FUK': '福岡', 'OKA': '沖繩', 'CTS': '札幌', 'KHH': '高雄',
     'SIN': '新加坡', 'KUL': '吉隆坡', 'BKK': '曼谷', 'MNL': '馬尼拉', 'SGN': '胡志明市', 'HAN': '河內', 'CGK': '雅加達', 'KNO': '棉蘭', 'DPS': '峇里島', 'PNH': '金邊', 'RGN': '仰光', 'VTE': '永珍',
-    'LAX': '洛杉磯', 'SJC': '聖荷西', 'SFO': '舊金山', 'SEA': '西雅圖', 'PDX': '波特蘭', 'YVR': '溫哥華', 'SAN': '聖地牙哥', 'PHX': '鳳凰城', 'LAS': '拉斯維加斯', 'SMF': '沙加緬度', 'SLC': '鹽湖城',
+    'LAX': '洛杉磯', 'SJC': '聖荷西', 'SFO': '舊金山', 'SEA': '西雅圖', 'PDX': '波特蘭', 'YVR': '溫哥宇', 'SAN': '聖地牙哥', 'PHX': '鳳凰城', 'LAS': '拉斯維加斯', 'SMF': '沙加緬度', 'SLC': '鹽湖城',
     'JFK': '紐約', 'EWR': '紐華克', 'ORD': '芝加哥', 'IAD': '華盛頓', 'MIA': '邁阿密', 'DFW': '達拉斯', 'IAH': '休士頓', 'ATL': '亞特蘭大', 'YYZ': '多倫多', 'YUL': '蒙特婁', 'DEN': '丹佛', 'BOS': '波士頓', 'PHL': '費城', 'DTW': '底特律', 'MSP': '明尼阿波利斯',
     'LHR': '倫敦', 'AMS': '阿姆斯特丹', 'FRA': '法蘭克福', 'CDG': '巴黎', 'MAD': '馬德里', 'ZRH': '蘇黎世', 'MXP': '米蘭', 'VIE': '維也納', 'ARN': '斯德哥爾摩', 'OSL': '奧斯陸', 'CPH': '哥本哈根', 'HEL': '赫爾辛基', 'WAW': '華沙', 'PRG': '布拉格', 'BUD': '布達佩斯', 'OTP': '布加勒斯特', 'ATH': '雅典', 'IST': '伊斯坦堡', 'DUB': '都裂林', 'BRU': '布魯塞爾', 'MUC': '慕尼黑', 'TXL': '柏林', 'LIS': '里斯本', 'FCO': '羅馬', 'BCN': '巴塞隆納',
     'SYD': '雪梨', 'MEL': '墨爾本', 'BNE': '布里斯本', 'PER': '伯斯', 'AKL': '奧克蘭', 'ADL': '阿得雷德', 'CBR': '坎培拉',
@@ -134,94 +134,130 @@ export default {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cloudflare 優選 IP 測速平台 (${VERSION})</title>
     <style>
-        :root { --primary: #3b82f6; --bg-card: #ffffff; --bg-inner: #f8fafc; --border: #e2e8f0; --text-main: #334155; --text-sub: #64748b; }
+        /* 基礎變數設定：採用現代質感 Indigo 與 Zinc 灰 */
+        :root { 
+            --primary: #4f46e5;         /* 莫蘭迪靛藍 */
+            --primary-hover: #4338ca;
+            --bg-main: #f8fafc;         /* 柔軟的淺灰藍背景 */
+            --bg-card: #ffffff;         /* 純白卡片 */
+            --bg-inner: #f1f5f9;        /* 輕柔的內部區塊背景 */
+            --border: #e2e8f0;          /* 細緻的邊框線 */
+            --text-main: #0f172a;       /* 深石瓦灰主字體 */
+            --text-sub: #64748b;        /* 灰藍色副字體 */
+            --radius: 12px;             /* 統一圓角弧度 */
+        }
+        
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; line-height: 1.6; background: #f1f5f9; color: var(--text-main); padding: 20px; transition: background 0.3s, color 0.3s; }
-        .container { max-width: 1300px; margin: 0 auto; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; background: var(--bg-main); color: var(--text-main); padding: 24px; transition: background 0.3s, color 0.3s; }
+        .container { max-width: 1200px; margin: 0 auto; }
         
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
-        .header h1 { font-size: 2rem; color: var(--primary); font-weight: 800; }
-        .social-link { padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 6px; text-decoration: none; color: var(--text-sub); background: white; font-size: 0.9rem; transition: .2s; }
-        .social-link:hover { color: var(--primary); border-color: var(--primary); }
+        /* 標頭設計 */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+        .header h1 { font-size: 1.75rem; color: var(--text-main); font-weight: 800; letter-spacing: -0.025em; }
+        .header p { font-size: 0.85rem; color: var(--text-sub); margin-top: 4px; font-weight: 500; }
+        .social-link { padding: 6px 14px; border: 1px solid var(--border); border-radius: 8px; text-decoration: none; color: var(--text-sub); background: var(--bg-card); font-size: 0.85rem; font-weight: 600; transition: .2s; }
+        .social-link:hover { color: var(--primary); border-color: var(--primary); background: var(--bg-main); }
 
-        .card { background: var(--bg-card); border-radius: 16px; padding: 24px; margin-bottom: 24px; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
-        .card h2 { font-size: 1.25rem; color: var(--text-main); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-weight: 700; }
+        /* 卡片容器 */
+        .card { background: var(--bg-card); border-radius: var(--radius); padding: 28px; margin-bottom: 24px; border: 1px solid var(--border); box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05); }
+        .card h2 { font-size: 1.15rem; color: var(--text-main); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; font-weight: 700; }
         
-        .latency-section { margin-top: 5px; }
-        .latency-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
-        .latency-box { background: var(--bg-inner); border: 1px solid var(--border); border-radius: 8px; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; transition: .2s; }
+        /* 數據統計區塊 */
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat { background: var(--bg-inner); padding: 18px; border-radius: var(--radius); text-align: center; border: 1px solid var(--border); transition: transform 0.2s; }
+        .stat:hover { transform: translateY(-2px); }
+        .stat-value { font-size: 2rem; font-weight: 800; color: var(--primary); letter-spacing: -0.05em; }
+        .stat div:last-child { font-size: 0.85rem; color: var(--text-sub); font-weight: 600; margin-top: 4px; }
         
-        .lat-label { font-size: 0.9rem; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 8px; }
-        .lat-ms { font-family: monospace; font-weight: 700; font-size: 1.05rem; }
-        .ms-fast { color: #16a34a; } .ms-mid { color: #d97706; } .ms-slow { color: #dc2626; } .ms-err { color: #94a3b8; }
-
-        @media (max-width: 1024px) { .latency-row { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 600px) { .latency-row { grid-template-columns: 1fr; gap: 10px; } .header { flex-direction: column; text-align: center; gap: 10px; } }
-
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 24px; }
-        .stat { background: var(--bg-inner); padding: 16px; border-radius: 12px; text-align: center; border: 1px solid var(--border); }
-        .stat-value { font-size: 1.8rem; font-weight: 700; color: var(--primary); }
-        
+        /* 按鈕群組與基礎按鈕樣式 */
         .button-group { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
-        .button { padding: 10px 18px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; background: var(--primary); color: white; display: inline-flex; align-items: center; gap: 6px; font-size: 0.95rem; text-decoration: none; height: 42px; }
-        .button:hover { background: #2563eb; transform: translateY(-1px); }
-        .button:disabled { opacity: 0.6; cursor: not-allowed; }
+        .button { padding: 10px 18px; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; background: var(--primary); color: white; display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; text-decoration: none; height: 40px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
+        .button:hover { background: var(--primary-hover); transform: translateY(-1px); }
+        .button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         
+        /* 讓原本混雜的按鈕色彩變得更溫和、具一致性 */
         .button-success { background: #10b981; } .button-success:hover { background: #059669; }
-        .button-secondary { background: white; color: #475569; border: 1px solid #cbd5e1; } .button-secondary:hover { background: #f1f5f9; }
-        .button-purple { background: #8b5cf6; } .button-purple:hover { background: #7c3aed; }
+        .button-secondary { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); } .button-secondary:hover { background: var(--bg-inner); }
+        .button-purple { background: #6366f1; } .button-purple:hover { background: #4f46e5; }
         .button-warning { background: #f59e0b; } .button-warning:hover { background: #d97706; }
-        .button-pink { background: #db2777; } .button-pink:hover { background: #be185d; }
+        .button-pink { background: #ec4899; } .button-pink:hover { background: #db2777; }
         .button-slate { background: #64748b; } .button-slate:hover { background: #475569; }
 
-        .ip-list { max-height: 500px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px; }
-        .ip-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--bg-card); }
-        .ip-info { display: flex; align-items: center; gap: 12px; }
-        .ip-address { font-family: monospace; font-weight: 600; font-size: 1.05rem; min-width: 140px; }
-        .colo-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 4px; background: #e0e7ff; color: #4338ca; font-weight: 600; min-width: auto; text-align: center; white-space: nowrap; }
-        .speed-result { font-size: 0.85rem; padding: 4px 10px; border-radius: 6px; background: var(--bg-inner); min-width: 70px; text-align: center; font-weight: 600; }
-        .speed-fast-bg { background: #dcfce7; color: #166534; } 
-        
-        .dropdown { position: relative; display: inline-block; }
-        .dropdown-content { display: none; position: absolute; background-color: var(--bg-card); min-width: 230px; box-shadow: 0 8px 16px rgba(0,0,0,0.1); z-index: 10; border-radius: 8px; border: 1px solid var(--border); top: 100%; left: 0; }
-        .dropdown:hover .dropdown-content { display: block; }
-        .dropdown-content a { color: var(--text-main); padding: 12px 16px; text-decoration: none; display: block; font-size: 0.9rem; border-bottom: 1px solid var(--border); cursor: pointer; }
-        .dropdown-content a:hover { background: var(--bg-inner); color: #2563eb; }
-
+        /* 端口標籤樣式 */
         .port-box { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-        .port-tag { padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.95rem; border: 1px solid transparent; font-weight: 600; }
-        .tag-http { background: #fff1f2; color: #be123c; border-color: #fda4af; } .tag-https { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
+        .port-tag { padding: 5px 12px; border-radius: 6px; font-family: monospace; font-size: 0.9rem; border: 1px solid transparent; font-weight: 700; }
+        .tag-http { background: #fef2f2; color: #991b1b; border-color: #fee2e2; } 
+        .tag-https { background: #f0f9ff; color: #075985; border-color: #e0f2fe; }
 
-        .log-box { background: #1e293b; color: #10b981; font-family: monospace; font-size: 0.85rem; padding: 15px; border-radius: 12px; margin-top: 20px; height: 200px; overflow-y: auto; border: 1px solid #334155; display: none; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); backdrop-filter: blur(2px); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background: var(--bg-card); color: var(--text-main); padding: 24px; border-radius: 16px; width: 90%; max-width: 450px; border: 1px solid var(--border); }
+        /* 列表樣式 */
+        .ip-list { max-height: 480px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+        .ip-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.2s; }
+        .ip-item:hover { background: var(--bg-main); }
+        .ip-item:last-child { border-bottom: none; }
+        .ip-info { display: flex; align-items: center; gap: 14px; }
+        .ip-address { font-family: monospace; font-weight: 700; font-size: 1rem; min-width: 145px; color: var(--text-main); }
         
-        .lock-input, .modal-input { width: 100%; padding: 10px 12px; margin: 10px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; outline: none; background: var(--bg-card); color: var(--text-main); transition: .2s; }
-        .lock-input:focus, .modal-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .colo-badge { font-size: 0.75rem; padding: 4px 10px; border-radius: 6px; background: #e0e7ff; color: #3730a3; font-weight: 700; text-align: center; white-space: nowrap; border: 1px solid #c7d2fe; }
+        .speed-result { font-size: 0.8rem; padding: 4px 12px; border-radius: 6px; background: var(--bg-inner); min-width: 75px; text-align: center; font-weight: 700; border: 1px solid var(--border); color: var(--text-sub); }
+        .speed-fast-bg { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; } 
         
-        .admin-indicator { position: fixed; top: 20px; right: 20px; z-index: 900; }
-        .admin-badge { background: #10b981; color: white; padding: 8px 16px; border-radius: 20px; font-size: 0.9rem; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .admin-badge.logged-out { background: #ef4444; }
-        .progress-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin: 10px 0; display: none; }
-        .progress-fill { height: 100%; background: #3b82f6; width: 0%; transition: width 0.3s; }
+        .small-btn { padding: 5px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-main); font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: .2s; }
+        .small-btn:hover { background: var(--bg-inner); border-color: var(--text-sub); }
 
-        /* 深色模式支援 CSS */
+        /* 下拉選單 */
+        .dropdown { position: relative; display: inline-block; }
+        .dropdown-content { display: none; position: absolute; background-color: var(--bg-card); min-width: 230px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1); z-index: 10; border-radius: var(--radius); border: 1px solid var(--border); top: calc(100% + 4px); left: 0; overflow: hidden; }
+        .dropdown:hover .dropdown-content { display: block; }
+        .dropdown-content a { color: var(--text-main); padding: 12px 18px; text-decoration: none; display: block; font-size: 0.85rem; font-weight: 600; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
+        .dropdown-content a:hover { background: var(--bg-inner); color: var(--primary); }
+        .dropdown-content a:last-child { border-bottom: none; }
+
+        /* 終端日誌盒 */
+        .log-box { background: #0f172a; color: #38bdf8; font-family: monospace; font-size: 0.8rem; padding: 18px; border-radius: var(--radius); margin-top: 24px; height: 180px; overflow-y: auto; border: 1px solid #1e293b; box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.06); }
+        .log-line { margin-bottom: 4px; line-height: 1.4; }
+        .log-error { color: #f87171; }
+        .log-info { color: #34d399; }
+
+        /* 彈窗設計 */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: var(--bg-card); color: var(--text-main); padding: 28px; border-radius: var(--radius); width: 90%; max-width: 440px; border: 1px solid var(--border); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); }
+        .modal h3 { font-size: 1.25rem; margin-bottom: 12px; font-weight: 800; }
+        
+        .lock-input, .modal-input { width: 100%; padding: 10px 14px; margin: 12px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; outline: none; background: var(--bg-card); color: var(--text-main); transition: .2s; }
+        .lock-input:focus, .modal-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); }
+        
+        /* 鎖定畫面與管理員徽章 */
+        .admin-indicator { position: fixed; top: 24px; right: 24px; z-index: 900; }
+        .admin-badge { background: #10b981; color: white; padding: 8px 16px; border-radius: 9999px; font-size: 0.85rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2); transition: .2s; }
+        .admin-badge:hover { transform: scale(1.02); }
+        .admin-badge.logged-out { background: #ef4444; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2); }
+        .progress-bar { height: 6px; background: var(--border); border-radius: 9999px; overflow: hidden; margin: 12px 0; display: none; }
+        .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
+
+        /* 自然、柔和的深色模式 (Prefers Dark Mode) */
         @media (prefers-color-scheme: dark) {
             :root {
-                --primary: #60a5fa;
-                --bg-card: #1e293b;
-                --bg-inner: #0f172a;
-                --border: #334155;
-                --text-main: #f1f5f9;
-                --text-sub: #94a3b8;
+                --primary: #818cf8;             /* 輕盈的亮靛藍 */
+                --primary-hover: #6366f1;
+                --bg-main: #0b0f19;             /* 精緻的暗夜藍黑 */
+                --bg-card: #151d30;             /* 深邃藍灰卡片 */
+                --bg-inner: #1e293b;            /* 稍微明亮的暗色內區塊 */
+                --border: #27354f;              /* 柔和的暗邊框 */
+                --text-main: #f8fafc;           /* 高易讀白字 */
+                --text-sub: #94a3b8;            /* 灰藍色副字 */
             }
-            body { background: #0f172a; }
-            .social-link { background: #1e293b; border-color: #475569; color: #94a3b8; }
-            .social-link:hover { color: #60a5fa; border-color: #60a5fa; }
-            .button-secondary { background: #1e293b; color: #cbd5e1; border-color: #475569; }
-            .button-secondary:hover { background: #334155; }
-            .speed-fast-bg { background: #064e3b; color: #a7f3d0; }
-            .progress-bar { background: #334155; }
+            body { background: var(--bg-main); }
+            .social-link { background: var(--bg-card); border-color: var(--border); color: var(--text-sub); }
+            .social-link:hover { color: var(--primary); border-color: var(--primary); background: var(--bg-inner); }
+            .button-secondary { background: var(--bg-card); color: var(--text-main); border-color: var(--border); }
+            .button-secondary:hover { background: var(--bg-inner); }
+            
+            .colo-badge { background: #1e1b4b; color: #c7d2fe; border-color: #312e81; }
+            .speed-fast-bg { background: #064e3b; color: #a7f3d0; border-color: #065f46; }
+            
+            .tag-http { background: #451a03; color: #fcd34d; border-color: #78350f; }
+            .tag-https { background: #0c4a6e; color: #bae6fd; border-color: #075985; }
+            .progress-bar { background: var(--bg-inner); }
         }
     </style>
 </head>
