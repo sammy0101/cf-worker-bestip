@@ -424,6 +424,18 @@ export default {
                     if(tokenIn) tokenIn.value = tokenConfig.token;
                 }
             }
+
+            // === 新增：網頁載入時還原重新整理前暫存的日誌 ===
+            const savedLogs = sessionStorage.getItem('restore_logs');
+            if (savedLogs) {
+                const logBox = document.getElementById('log-box');
+                if (logBox) {
+                    logBox.innerHTML = savedLogs;
+                    logBox.style.display = 'block';
+                    logBox.scrollTop = logBox.scrollHeight;
+                }
+                sessionStorage.removeItem('restore_logs'); // 還原後立即清除，避免手動重新整理網頁時重複跑出來
+            }
         });
 
         function addLog(msg, type='normal') {
@@ -486,6 +498,11 @@ export default {
                 const res = await api('/update', 'POST'); 
                 if(res.success) { 
                     addLog(\`✅ 更新成功！目前庫存: \${res.totalIPs} 個 IP (已套用網段隨機抽樣模式)\`); 
+                    
+                    // 重新整理前，將當前日誌內容暫存至 sessionStorage
+                    const logBox = document.getElementById('log-box');
+                    if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
+
                     setTimeout(()=>location.reload(), 1500); 
                 } else {
                     addLog('❌ 失敗: '+res.error, 'error'); 
