@@ -83,6 +83,10 @@ compatibility_date = "2024-03-01"
 [[kv_namespaces]]
 binding = "IP_STORAGE"
 id = "KV_ID_PLACEHOLDER"
+
+# ----------------- 每 6 小時定時觸發設定 -----------------
+[triggers]
+crons = ["0 */6 * * *"]  # 每 6 小時整點自動執行一次 (非常安全且節省額度的設定)
 ```
 
 ### 步驟 3：配置 GitHub Secrets
