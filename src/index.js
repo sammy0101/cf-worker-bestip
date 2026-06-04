@@ -241,29 +241,6 @@ export default {
             <div><a href="https://github.com/sammy0101/cf-worker-bestip" target="_blank" class="social-link">GitHub</a></div>
         </div>
 
-        <!-- 儀表板區域 -->
-        <div class="card">
-            <h2>🌍 當前網絡信息 <span style="font-size:0.8rem; color:#94a3b8; font-weight:400; margin-left:10px;">(每5秒自動刷新)</span></h2>
-            
-            <div class="latency-section">
-                <div style="font-size:0.85rem; font-weight:700; color:var(--text-sub); margin-bottom:8px;">HTTP 連通性測試 - 國外</div>
-                <div class="latency-row">
-                    <div class="latency-box"><div class="lat-label">🐙 GitHub</div><div class="lat-ms ms-err" id="lat-github">---</div></div>
-                    <div class="latency-box"><div class="lat-label">🤖 OpenAI</div><div class="lat-ms ms-err" id="lat-openai">---</div></div>
-                    <div class="latency-box"><div class="lat-label">☁️ Cloudflare</div><div class="lat-ms ms-err" id="lat-cf">---</div></div>
-                    <div class="latency-box"><div class="lat-label">▶️ YouTube</div><div class="lat-ms ms-err" id="lat-youtube">---</div></div>
-                </div>
-
-                <div style="font-size:0.85rem; font-weight:700; color:var(--text-sub); margin-bottom:8px;">HTTP 連通性測試 - 國內</div>
-                <div class="latency-row">
-                    <div class="latency-box"><div class="lat-label">🐼 百度</div><div class="lat-ms ms-err" id="lat-baidu">---</div></div>
-                    <div class="latency-box"><div class="lat-label">📺 Bilibili</div><div class="lat-ms ms-err" id="lat-bilibili">---</div></div>
-                    <div class="latency-box"><div class="lat-label">💬 微信</div><div class="lat-ms ms-err" id="lat-wechat">---</div></div>
-                    <div class="latency-box"><div class="lat-label">🛒 淘寶</div><div class="lat-ms ms-err" id="lat-taobao">---</div></div>
-                </div>
-            </div>
-        </div>
-
         ${!isLoggedIn ? `
         <!-- 鎖定畫面 -->
         <div class="card lock-screen" style="text-align: center; padding: 40px 20px;">
