@@ -1,8 +1,4 @@
-// V3.4.0 改良版：
-// 1. 新增：隨機網段抽樣 (避免 IP 採樣偏向網段頭部，並修正 32位元有號數溢出問題)
-// 2. 新增：免費版子請求超限保護 (上限限制在 45 次內，防止 Free 帳戶崩潰)
-// 3. 優化：全面改用現代化 AbortSignal.timeout() 進行超時控制
-// 4. 優化：新增 CSS 自動深色模式支援 (Dark Mode)
+const VERSION = "V3.5.0"; // 系統版本號，修改此處即可同步更新網頁顯示
 
 // --- 設定區域 ---
 const FAST_IP_COUNT = 25; // 優質 IP 數量
@@ -136,7 +132,7 @@ export default {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cloudflare 優選 IP 測速平台 (V3.4.0)</title>
+    <title>Cloudflare 優選 IP 測速平台 (${VERSION})</title>
     <style>
         :root { --primary: #3b82f6; --bg-card: #ffffff; --bg-inner: #f8fafc; --border: #e2e8f0; --text-main: #334155; --text-sub: #64748b; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -237,7 +233,8 @@ export default {
 
     <div class="container">
         <div class="header">
-            <div class="header-content"><h1>Cloudflare 優選 IP 測速平台</h1><p>V3.4.0</p></div>
+            <div class="header">
+    <div class="header-content"><h1>Cloudflare 優選 IP 測速平台</h1><p>${VERSION}</p></div>
             <div><a href="https://github.com/sammy0101/cf-worker-bestip" target="_blank" class="social-link">GitHub</a></div>
         </div>
 
@@ -393,34 +390,7 @@ export default {
                 }
             }
 
-            initDashboard();
-            setInterval(initDashboard, 5000); 
         });
-
-        function initDashboard() {
-            checkLatency('https://github.githubassets.com/favicons/favicon.svg', 'lat-github');
-            checkLatency('https://openai.com/favicon.ico', 'lat-openai');
-            checkLatency('https://www.cloudflare.com/favicon.ico', 'lat-cf');
-            checkLatency('https://www.youtube.com/favicon.ico', 'lat-youtube');
-            checkLatency('https://www.baidu.com/favicon.ico', 'lat-baidu');
-            checkLatency('https://www.bilibili.com/favicon.ico', 'lat-bilibili');
-            checkLatency('https://res.wx.qq.com/a/wx_fed/assets/res/NTI4MWU5.ico', 'lat-wechat');
-            checkLatency('https://www.taobao.com/favicon.ico', 'lat-taobao');
-        }
-
-        async function checkLatency(url, elId) {
-            const el = document.getElementById(elId);
-            const start = Date.now();
-            const img = new Image();
-            const timeout = setTimeout(() => { el.innerText = '超時'; el.className = 'lat-ms ms-slow'; }, 5000);
-            img.onload = img.onerror = function() {
-                clearTimeout(timeout);
-                const ping = Date.now() - start;
-                el.innerText = ping + 'ms';
-                el.className = 'lat-ms ' + (ping < 100 ? 'ms-fast' : ping < 300 ? 'ms-mid' : 'ms-slow');
-            };
-            img.src = url + '?' + Math.random();
-        }
 
         function addLog(msg, type='normal') {
             const box = document.getElementById('log-box'); if(!box) return; box.style.display='block';
