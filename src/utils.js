@@ -28,3 +28,23 @@ export function handleCORS() {
         } 
     }); 
 }
+
+// 新增：檢查某個 IP 是否落在特定的 CIDR 網段內
+export function isIpInCidr(ip, cidr) {
+    try {
+        const [cidrIp, maskStr] = cidr.split('/');
+        const maskBits = parseInt(maskStr || '32');
+        const start = ipToNum(cidrIp);
+        const totalIPs = Math.pow(2, 32 - maskBits);
+        const end = start + totalIPs - 1;
+        const num = ipToNum(ip);
+        return num >= start && num <= end;
+    } catch {
+        return false;
+    }
+}
+
+// 新增：檢查 IP 是否屬於 Cloudflare 官方 IP 集
+export function isCloudflareIP(ip, cfCidrs) {
+    return cfCidrs.some(cidr => isIpInCidr(ip, cidr));
+}
