@@ -1,5 +1,5 @@
 // src/ip.js
-import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT, CLOUDFLARE_OFFICIAL_CIDRS } from './config.js';
+import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT } from './config.js';
 import { ipToNum, numToIp, isValidIPv4, jsonResponse, isCloudflareIP } from './utils.js';
 import { verifyAdmin } from './auth.js';
 
