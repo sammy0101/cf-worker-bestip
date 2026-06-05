@@ -1,6 +1,6 @@
 // src/ip.js
-import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT } from './config.js';
-import { ipToNum, numToIp, isValidIPv4, jsonResponse } from './utils.js';
+import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT, CLOUDFLARE_OFFICIAL_CIDRS } from './config.js';
+import { ipToNum, numToIp, isValidIPv4, jsonResponse, isCloudflareIP } from './utils.js';
 import { verifyAdmin } from './auth.js';
 
 export async function getStoredIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_ips')) || {ips:[]}; } catch { return {ips:[]}; } }
@@ -18,8 +18,17 @@ export async function updateAllIPs(env) {
             const matches = txt.match(cidrRegex) || [];
             let count = 0;
             matches.forEach(m => {
-                if(m.includes('/')) expandCIDR(m).forEach(ip => { if(isValidIPv4(ip)) { uniqueIPs.add(ip); count++; }});
-                else if(isValidIPv4(m)) { uniqueIPs.add(m); count++; }
+                if(m.includes('/')) {
+                    expandCIDR(m).forEach(ip => { 
+                        if(isValidIPv4(ip) && isCloudflareIP(ip, CLOUDFLARE_OFFICIAL_CIDRS)) { 
+                            uniqueIPs.add(ip); 
+                            count++; 
+                        }
+                    });
+                } else if(isValidIPv4(m) && isCloudflareIP(m, CLOUDFLARE_OFFICIAL_CIDRS)) { 
+                    uniqueIPs.add(m); 
+                    count++; 
+                }
             });
             results.push({ name: url, status: 'success', count });
         } catch(e) { results.push({ name: url, status: 'error', error: e.message }); }
