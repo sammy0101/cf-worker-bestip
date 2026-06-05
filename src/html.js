@@ -30,7 +30,6 @@ export async function serveHTML(env, request) {
       sessionId = url.searchParams.get('session');
     }
 
-    // 已修正：最外層的反單引號 (`) 前方不加反斜線 (\)
     const html = `<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -552,4 +551,7 @@ export async function serveHTML(env, request) {
         }
     </script>
 </body>
-</html>`;
+</html>\`;
+
+    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+}
