@@ -30,6 +30,7 @@ export async function serveHTML(env, request) {
       sessionId = url.searchParams.get('session');
     }
 
+    // 已確認：此處開頭為乾淨的單個反單引號，無任何反斜線
     const html = `<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -120,7 +121,6 @@ export async function serveHTML(env, request) {
             border: 1px solid var(--border); 
             top: calc(100% + 4px); 
             left: 0; 
-            /* 移除原本的 overflow: hidden; */
         }
         /* 解決滑鼠慢速移動時，因空隙導致下拉選單消失的問題 */
         .dropdown-content::before {
@@ -551,7 +551,7 @@ export async function serveHTML(env, request) {
         }
     </script>
 </body>
-</html>\`;
+</html>`;
 
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
