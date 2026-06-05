@@ -12,20 +12,50 @@ export async function updateAllIPs(env) {
     const uniqueIPs = new Set();
     const results = [];
     const cidrRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?:\/(?:[0-9]{1,2}))?\b/gi;
+    
+    // === 1. 動態從 Cloudflare 官方 API 獲取最新的安全 IPv4 網段 ===
+    let officialCidrs = [];
+    try {
+        const cfIpsRes = await fetch('https://api.cloudflare.com/client/v4/ips', {
+            signal: AbortSignal.timeout(5000), // 設定 5 秒超時
+            headers: { 'User-Agent': 'CF-Worker' }
+        });
+        if (cfIpsRes.ok) {
+            const data = await cfIpsRes.json();
+            if (data.success && data.result && data.result.ipv4_cidrs) {
+                officialCidrs = data.result.ipv4_cidrs;
+            }
+        }
+    } catch (e) {
+        console.error("無法取得 Cloudflare 官方即時 IP 白名單，將起用備用清單:", e.message);
+    }
+
+    // === 2. 備用防線：如果官方 API 連線失敗，則自動套用這套備用白名單 ===
+    if (officialCidrs.length === 0) {
+        officialCidrs = [
+            "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+            "141.101.64.0/18", "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22",
+            "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14",
+            "172.64.0.0/13", "131.0.72.0/22"
+        ];
+    }
+
+    // === 3. 開始抓取各個優化源，並使用剛才獲取的 officialCidrs 進行安全過濾 ===
     for (const url of urls) {
         try {
             const txt = await fetchURLWithTimeout(url);
             const matches = txt.match(cidrRegex) || [];
             let count = 0;
             matches.forEach(m => {
-                if(m.includes('/')) {
+                if (m.includes('/')) {
                     expandCIDR(m).forEach(ip => { 
-                        if(isValidIPv4(ip) && isCloudflareIP(ip, CLOUDFLARE_OFFICIAL_CIDRS)) { 
+                        // 套用動態獲取的白名單驗證
+                        if (isValidIPv4(ip) && isCloudflareIP(ip, officialCidrs)) { 
                             uniqueIPs.add(ip); 
                             count++; 
                         }
                     });
-                } else if(isValidIPv4(m) && isCloudflareIP(m, CLOUDFLARE_OFFICIAL_CIDRS)) { 
+                } else if (isValidIPv4(m) && isCloudflareIP(m, officialCidrs)) { 
                     uniqueIPs.add(m); 
                     count++; 
                 }
