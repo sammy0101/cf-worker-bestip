@@ -1,9 +1,11 @@
+// src/utils.js
+
 export function ipToNum(ip) { 
-    return ip.split('.').reduce((a,b) => a * 256 + parseInt(b), 0); 
+    return ip.split('.').reduce((a, b) => a * 256 + parseInt(b), 0); 
 }
 
 export function numToIp(n) { 
-    return [(n>>>24)&255, (n>>>16)&255, (n>>>8)&255, n&255].join('.'); 
+    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'); 
 }
 
 export function isValidIPv4(ip) { 
