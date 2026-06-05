@@ -3,8 +3,8 @@ name: Deploy Worker
 on:
   push:
     branches:
-      - main  # 當 main 分支有代碼推送時自動觸發
-  workflow_dispatch:  # 允許在 GitHub 網頁上手動點擊執行部署
+      - main  # 當推送到 main 分支時觸發自動部署
+  workflow_dispatch:  # 支援在 GitHub 網頁上手動點擊按鈕部署
 
 jobs:
   deploy:
@@ -14,7 +14,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 步驟：在部署前，將 wrangler.toml 中的佔位符替換為 GitHub Secrets 裡的值
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 新增：安裝專案依賴（包含 package.json 中的 Wrangler）
+      - name: Install Dependencies
+        run: npm install
+
+      # 部署前：將 wrangler.toml 的 KV_ID_PLACEHOLDER 替換成 GitHub Secrets 的 KV ID
       - name: Replace KV ID in wrangler.toml
         run: |
           sed -i 's/KV_ID_PLACEHOLDER/${{ secrets.CF_KV_ID }}/g' wrangler.toml
@@ -23,5 +32,4 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          # 選擇性提供：帶入 Account ID（若有多個帳戶建議設定）
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
