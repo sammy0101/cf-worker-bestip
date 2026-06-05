@@ -30,6 +30,7 @@ export async function serveHTML(env, request) {
       sessionId = url.searchParams.get('session');
     }
 
+    // 已修正：最外層的反單引號 (`) 前方不加反斜線 (\)
     const html = `<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -534,4 +535,21 @@ export async function serveHTML(env, request) {
             const ips = Array.from(document.querySelectorAll('.ip-address')).map(el => el.innerText).join('\\n');
             navigator.clipboard.writeText(ips); alert('已複製');
         }
-        function openItdogModal() { document.getElementById('itdog-modal').style.displ
+        function openItdogModal() { document.getElementById('itdog-modal').style.display='flex'; }
+        function copyIPsForItdog() {
+            const ips = Array.from(document.querySelectorAll('.ip-address')).map(el => el.innerText).join('\\n');
+            if(ips) { navigator.clipboard.writeText(ips); window.open('https://www.itdog.cn/batch_tcping/', '_blank'); }
+        }
+
+        // 前端點選「隨機」按鈕時，自動生成隨機 Token 填入
+        function generateRandomTokenInModal() {
+            const tokenIn = document.getElementById('token-in');
+            if(!tokenIn) return;
+            let r = ''; 
+            const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; 
+            for(let i=0; i<32; i++) r += c.charAt(Math.floor(Math.random()*c.length)); 
+            tokenIn.value = r;
+        }
+    </script>
+</body>
+</html>`;
