@@ -256,7 +256,11 @@ export async function serveHTML(env, request) {
     <div class="modal" id="token-modal">
         <div class="modal-content">
             <h3>⚙️ Token 設定</h3>
-            <input type="text" id="token-in" class="modal-input" placeholder="輸入新 Token (留空自動生成)">
+            <!-- 修改：並排輸入框與隨機按鈕 -->
+            <div style="display: flex; gap: 8px; align-items: center; margin: 12px 0;">
+                <input type="text" id="token-in" class="modal-input" style="margin: 0; flex: 1;" placeholder="輸入新 Token (留空自動生成)">
+                <button class="small-btn" style="height: 40px; padding: 0 12px; font-size: 0.85rem; border-radius: 8px; font-weight: 700; background: var(--bg-inner);" onclick="generateRandomTokenInModal()">🎲 隨機</button>
+            </div>
             <div style="margin-bottom:15px; font-size: 0.9rem; color: var(--text-sub); display: flex; align-items: center; gap: 10px;">
                 <label style="cursor:pointer;"><input type="checkbox" id="never-expire" style="margin-right:4px;"> 永不過期</label>
                 <div>或 <input type="number" id="expire-days" value="30" style="width:60px; padding:4px; border:1px solid var(--border); border-radius:4px; background:var(--bg-card); color:var(--text-main);"> 天後過期</div>
@@ -490,6 +494,16 @@ export async function serveHTML(env, request) {
         function copyIPsForItdog() {
             const ips = Array.from(document.querySelectorAll('.ip-address')).map(el => el.innerText).join('\\n');
             if(ips) { navigator.clipboard.writeText(ips); window.open('https://www.itdog.cn/batch_tcping/', '_blank'); }
+        }
+
+        // 新增：前端點選「隨機」按鈕時，自動生成隨機 Token 填入
+        function generateRandomTokenInModal() {
+            const tokenIn = document.getElementById('token-in');
+            if(!tokenIn) return;
+            let r = ''; 
+            const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; 
+            for(let i=0; i<32; i++) r += c.charAt(Math.floor(Math.random()*c.length)); 
+            tokenIn.value = r;
         }
     </script>
 </body>
