@@ -101,6 +101,17 @@ export async function serveHTML(env, request) {
 
         .dropdown { position: relative; display: inline-block; }
         .dropdown-content { display: none; position: absolute; background-color: var(--bg-card); min-width: 230px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1); z-index: 10; border-radius: var(--radius); border: 1px solid var(--border); top: calc(100% + 4px); left: 0; overflow: hidden; }
+        
+        .dropdown-content::before {
+            content: '';
+            position: absolute;
+            top: -12px;
+            left: 0;
+            right: 0;
+            height: 12px;
+            background: transparent;
+        }
+
         .dropdown:hover .dropdown-content { display: block; }
         .dropdown-content a { color: var(--text-main); padding: 12px 18px; text-decoration: none; display: block; font-size: 0.85rem; font-weight: 600; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s; }
         .dropdown-content a:hover { background: var(--bg-inner); color: var(--primary); }
