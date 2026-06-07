@@ -1,5 +1,5 @@
 // src/html.js
-import { VERSION, FAST_IP_COUNT, AUTO_TEST_MAX_IPS, COLO_MAP } from './config.js';
+import { VERSION, FAST_IP_COUNT, AUTO_TEST_MAX_IPS, BROWSER_TEST_MAX_IPS, COLO_MAP } from './config.js';
 import { verifyAdmin, getTokenConfig } from './auth.js';
 import { getStoredIPs, getStoredSpeedIPs } from './ip.js';
 
@@ -321,7 +321,7 @@ export async function serveHTML(env, request) {
         let sessionId = '${sessionId || ''}';
         let isLoggedIn = ${isLoggedIn};
         let tokenConfig = ${tokenConfig ? JSON.stringify(tokenConfig) : 'null'};
-        const MAX_TEST = ${AUTO_TEST_MAX_IPS};
+        const MAX_TEST = ${BROWSER_TEST_MAX_IPS}; // 修改：改為讀取獨立的瀏覽器測速限制 (500)
         const DISPLAY_COUNT = ${FAST_IP_COUNT};
 
         document.addEventListener('DOMContentLoaded', function() {
