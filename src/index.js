@@ -61,5 +61,11 @@ async function handleUpdate(env, request) {
     await env.IP_STORAGE.put('cloudflare_ips', JSON.stringify({
       ips: uniqueIPs, lastUpdated: new Date().toISOString(), count: uniqueIPs.length, sources: results
     }));
-    return jsonResponse({ success: true, duration: (Date.now()-start)+'ms', totalIPs: uniqueIPs.length });
+    // 修改：回傳資料中一併帶上 results 統計名單
+    return jsonResponse({ 
+      success: true, 
+      duration: (Date.now()-start)+'ms', 
+      totalIPs: uniqueIPs.length,
+      results: results 
+    });
 }
