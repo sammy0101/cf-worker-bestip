@@ -229,7 +229,7 @@ export async function serveHTML(env, request) {
             <h2>📊 系統狀態</h2>
             <div class="stats">
                 <div class="stat"><div class="stat-value">${data.count || 0}</div><div>IP 總數</div></div>
-                <div class="stat"><div class="stat-value">${data.lastUpdated ? new Date(data.lastUpdated).toLocaleTimeString() : '從未'}</div><div>更新時間</div></div>
+                <div class="stat"><div class="stat-value">${data.lastUpdated ? new Date(data.lastUpdated).toLocaleTimeString('en-US', { timeZone: 'Asia/Hong_Kong' }) : '從未'}</div><div>更新時間</div></div>
                 <div class="stat"><div class="stat-value">${fastIPs.length}</div><div>優質 IP</div></div>
             </div>
             <div class="button-group">
