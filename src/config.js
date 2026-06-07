@@ -2,8 +2,8 @@
 
 export const VERSION = "V4.0.0";             // 系統版本號
 export const FAST_IP_COUNT = 25;             // 優質 IP 數量
-export const AUTO_TEST_MAX_IPS = 500;        // 定時任務測速最大數量 (建議保持在 45 以下以契合免費版單次 50 次子請求限制)
-export const SAFE_SUBREQUEST_LIMIT = 500;    // 子請求安全硬上限，防止免費方案部署時發生異常
+export const AUTO_TEST_MAX_IPS = 45;        // 定時任務測速最大數量 (建議保持在 45 以下以契合免費版單次 50 次子請求限制)
+export const SAFE_SUBREQUEST_LIMIT = 45;    // 子請求安全硬上限，防止免費方案部署時發生異常
 
 // IP 來源網址列表 (亞洲優化庫)
 export const CIDR_SOURCE_URLS = [
