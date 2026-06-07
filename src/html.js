@@ -437,11 +437,23 @@ export async function serveHTML(env, request) {
                 if(res.success) { 
                     addLog(\`✅ 更新成功！目前庫存: \${res.totalIPs} 個 IP (已套用網段隨機抽樣模式)\`); 
                     
+                    // 新增：迴圈讀取並逐條印出每個 CIDR 來源的提取數量
+                    if (res.results && res.results.length) {
+                        res.results.forEach(item => {
+                            if (item.status === 'success') {
+                                addLog(\`➡️ 來源: \${item.name} | 提取: \${item.count} 個\`, 'info');
+                            } else {
+                                addLog(\`❌ 來源: \${item.name} | 失敗: \${item.error}\`, 'error');
+                            }
+                        });
+                    }
+
                     // 重新整理前將日誌暫存至 sessionStorage
                     const logBox = document.getElementById('log-box');
                     if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
 
-                    setTimeout(()=>location.reload(), 1500); 
+                    // 修改：將自動重整時間放寬至 4000ms (4 秒) 以便閱讀日誌
+                    setTimeout(()=>location.reload(), 4000); 
                 } else {
                     addLog('❌ 失敗: '+res.error, 'error'); 
                 }
