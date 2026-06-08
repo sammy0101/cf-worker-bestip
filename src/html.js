@@ -3,14 +3,6 @@ import { VERSION, FAST_IP_COUNT, AUTO_TEST_MAX_IPS, BROWSER_TEST_MAX_IPS, COLO_M
 import { verifyAdmin, getTokenConfig } from './auth.js';
 import { getStoredIPs, getStoredSpeedIPs } from './ip.js';
 
-function addAuthToUrl(url, sessionId, tokenConfig) {
-    if (!sessionId && !tokenConfig) return url;
-    const separator = url.includes('?') ? '&' : '?';
-    if (tokenConfig && tokenConfig.token) return `${url}${separator}token=${encodeURIComponent(tokenConfig.token)}`;
-    if (sessionId) return `${url}${separator}session=${encodeURIComponent(sessionId)}`;
-    return url;
-}
-
 export async function serveHTML(env, request) {
     const isLoggedIn = await verifyAdmin(request, env);
     const hasAdminPassword = !!env.ADMIN_PASSWORD;
@@ -237,16 +229,16 @@ export async function serveHTML(env, request) {
                 
                 <div class="dropdown"><button class="button button-success">🚀 下載中心 ▼</button>
                     <div class="dropdown-content">
-                        <a href="${addAuthToUrl('/fast-ips.txt', sessionId, tokenConfig)}" download="cloudflare_fast_ips.txt">🚀 下載後端優選 IP</a>
+                        <a href="/fast-ips.txt" download="cloudflare_fast_ips.txt">🚀 下載後端優選 IP</a>
                         <a onclick="downloadBrowserResults()">⚡ 下載本機測速結果</a>
-                        <a href="${addAuthToUrl('/ips', sessionId, tokenConfig)}" download="all_ips.txt">📦 下載完整 IP 庫</a>
+                        <a href="/ips" download="all_ips.txt">📦 下載完整 IP 庫</a>
                     </div>
                 </div>
                 <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
                     <div class="dropdown-content">
-                        <a href="${addAuthToUrl('/fast-ips.txt', sessionId, tokenConfig)}" target="_blank">🚀 查看後端優選 IP</a>
-                        <a href="${addAuthToUrl('/browser-ips.txt', sessionId, tokenConfig)}" target="_blank">⚡ 查看本機測速結果</a>
-                        <a href="${addAuthToUrl('/ip.txt', sessionId, tokenConfig)}" target="_blank">📦 查看完整 IP 庫</a>
+                        <a href="/fast-ips.txt" target="_blank">🚀 查看後端優選 IP</a>
+                        <a href="/browser-ips.txt" target="_blank">⚡ 查看本機測速結果</a>
+                        <a href="/ip.txt" target="_blank">📦 查看完整 IP 庫</a>
                     </div>
                 </div>
                 <div class="dropdown"><button class="button button-purple">🔌 複製 API 連結 ▼</button>
@@ -496,20 +488,11 @@ export async function serveHTML(env, request) {
             else if (type === 'all') path = '/ips';
             
             let url = 'https://' + host + path;
-            const urlObj = new URL(url);
-            
-            if (tokenConfig && tokenConfig.token) {
-                urlObj.searchParams.set('token', tokenConfig.token);
-            } else if (sessionId) {
-                urlObj.searchParams.set('session', sessionId);
-            }
-            
-            const finalUrl = urlObj.toString();
-            navigator.clipboard.writeText(finalUrl).then(() => alert('已複製: ' + finalUrl));
+            navigator.clipboard.writeText(url).then(() => alert('已複製: ' + url));
         }
     </script>
 </body>
-</html>`;
+</html>\`;
 
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
