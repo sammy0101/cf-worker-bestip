@@ -462,19 +462,16 @@ export async function serveHTML(env, request) {
             try { 
                 const res = await api('/update', 'POST'); 
                 if(res.success) { 
-                    addLog(\`✅ 更新成功！目前庫存: \${res.totalIPs} 個 IP (已套用網段隨機抽樣模式)\`); 
-                    
                     const logBox = document.getElementById('log-box');
-                    if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
-
-                    // 動畫化：以 150ms 延遲逐條印出每個來源的提取狀態，富含動感
+                    
+                    // 1. 動畫化：以 150ms 延遲逐條印出每個來源的提取狀態，富有動感
                     if (res.results && res.results.length) {
                         res.results.forEach((item, index) => {
                             setTimeout(() => {
                                 if (item.status === 'success') {
                                     addLog(\`➡️ 來源: \${item.name} | 提取: \${item.count} 個\`, 'info');
                                 } else {
-                                    addLog(\`❌ 來源: \${item.name} | 失敗: \${item.error}\`, 'error');
+                                    addLog(\`❌ 來源: \${item.name} | 失敗: \s\${item.error}\`, 'error');
                                 }
                                 // 每跑出一行，就更新一次暫存，確保重新整理後保留最完整的終端畫面
                                 if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
@@ -482,8 +479,15 @@ export async function serveHTML(env, request) {
                         });
                     }
 
-                    // 所有動畫播完（29個來源約 4.3 秒）後，多留 2 秒緩衝再自動刷新，提供完美的閱讀時間
-                    const reloadDelay = (res.results ? res.results.length * 150 : 0) + 2000;
+                    // 2. 所有明細動畫播完（約 4.3 秒）後，在最底部印出大字「成功彙總訊息」
+                    const summaryDelay = (res.results ? res.results.length * 150 : 0) + 200;
+                    setTimeout(() => {
+                        addLog(\`✅ 更新成功！目前庫存: \${res.totalIPs} 個 IP (已套用網段隨機抽樣模式)\`);
+                        if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
+                    }, summaryDelay);
+
+                    // 3. 成功彙總印出後，再留 2 秒緩衝時間，隨後自動重新整理網頁
+                    const reloadDelay = summaryDelay + 2000;
                     setTimeout(() => {
                         location.reload();
                     }, reloadDelay); 
