@@ -30,7 +30,6 @@ export async function serveHTML(env, request) {
       sessionId = url.searchParams.get('session');
     }
 
-    // 已確認：此處開頭為乾淨的單個反單引號，無任何反斜線
     const html = `<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -257,11 +256,8 @@ export async function serveHTML(env, request) {
                         <a onclick="copyApiUrl('all')">📦 複製完整 IP 庫 API</a>
                     </div>
                 </div>
-                <button class="button button-pink" onclick="openItdogModal()">🌐 ITDog 測速</button>
-                <button class="button button-slate" onclick="openTokenModal()">🔑 Token 管理</button>
             </div>
             <div id="log-box" class="log-box"></div>
-            ${tokenConfig ? `<div style="margin-top: 15px; padding: 10px; background: var(--bg-inner); border-radius: 8px; font-size: 0.85rem; border: 1px solid var(--border);"><strong>當前 Token:</strong> <span style="font-family:monospace; background:var(--bg-card); padding:2px 6px; border-radius:4px;">${tokenConfig.token}</span></div>` : ''}
         </div>
 
         <div class="card">
@@ -295,33 +291,14 @@ export async function serveHTML(env, request) {
     </div>
 
     <!-- Modals -->
-    <div class="modal" id="itdog-modal"><div class="modal-content"><h3>🌐 ITDog 測速</h3><p style="margin-bottom:15px;">複製 IP 至 ITDog 測試。</p><div style="text-align:right;"><button class="button button-secondary" onclick="document.getElementById('itdog-modal').style.display='none'">關閉</button><button class="button" onclick="copyIPsForItdog()">📋 複製前往</button></div></div></div>
     <div class="modal" id="login-modal"><div class="modal-content"><h3>🔐 管理員登入</h3><input type="password" id="admin-pass" class="modal-input" placeholder="輸入密碼"><div style="text-align:right; margin-top: 10px;"><button class="button" onclick="loginModal()">登入</button></div></div></div>
-    <div class="modal" id="token-modal">
-        <div class="modal-content">
-            <h3>⚙️ Token 設定</h3>
-            <!-- 並排輸入框與隨機按鈕 -->
-            <div style="display: flex; gap: 8px; align-items: center; margin: 12px 0;">
-                <input type="text" id="token-in" class="modal-input" style="margin: 0; flex: 1;" placeholder="輸入新 Token (留空自動生成)">
-                <button class="small-btn" style="height: 40px; padding: 0 12px; font-size: 0.85rem; border-radius: 8px; font-weight: 700; background: var(--bg-inner);" onclick="generateRandomTokenInModal()">🎲 隨機</button>
-            </div>
-            <div style="margin-bottom:15px; font-size: 0.9rem; color: var(--text-sub); display: flex; align-items: center; gap: 10px;">
-                <label style="cursor:pointer;"><input type="checkbox" id="never-expire" style="margin-right:4px;"> 永不過期</label>
-                <div>或 <input type="number" id="expire-days" value="30" style="width:60px; padding:4px; border:1px solid var(--border); border-radius:4px; background:var(--bg-card); color:var(--text-main);"> 天後過期</div>
-            </div>
-            <div style="text-align:right;">
-                <button class="button button-secondary" onclick="document.getElementById('token-modal').style.display='none'">取消</button>
-                <button class="button" onclick="saveToken()">儲存</button>
-            </div>
-        </div>
-    </div>
 
     <script>
         const COLO_MAP = ${JSON.stringify(COLO_MAP)};
         let sessionId = '${sessionId || ''}';
         let isLoggedIn = ${isLoggedIn};
         let tokenConfig = ${tokenConfig ? JSON.stringify(tokenConfig) : 'null'};
-        const MAX_TEST = ${BROWSER_TEST_MAX_IPS}; // 修改：改為讀取獨立的瀏覽器測速限制 (500)
+        const MAX_TEST = ${BROWSER_TEST_MAX_IPS};
         const DISPLAY_COUNT = ${FAST_IP_COUNT};
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -332,8 +309,6 @@ export async function serveHTML(env, request) {
                     } else {
                         const loginModalEl = document.getElementById('login-modal');
                         if (loginModalEl && loginModalEl.style.display !== 'none') { e.preventDefault(); loginModal(); }
-                        const tokenModalEl = document.getElementById('token-modal');
-                        if (tokenModalEl && tokenModalEl.style.display !== 'none') { e.preventDefault(); saveToken(); }
                     }
                 }
             });
@@ -437,7 +412,11 @@ export async function serveHTML(env, request) {
                 if(res.success) { 
                     addLog(\`✅ 更新成功！目前庫存: \${res.totalIPs} 個 IP (已套用網段隨機抽樣模式)\`); 
                     
-                    // 新增：迴圈讀取並逐條印出每個 CIDR 來源的提取數量
+                    // 重新整理前將日誌暫存至 sessionStorage
+                    const logBox = document.getElementById('log-box');
+                    if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
+
+                    // 迴圈讀取並逐條印出每個 CIDR 來源的提取數量
                     if (res.results && res.results.length) {
                         res.results.forEach(item => {
                             if (item.status === 'success') {
@@ -448,11 +427,6 @@ export async function serveHTML(env, request) {
                         });
                     }
 
-                    // 重新整理前將日誌暫存至 sessionStorage
-                    const logBox = document.getElementById('log-box');
-                    if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
-
-                    // 修改：將自動重整時間放寬至 4000ms (4 秒) 以便閱讀日誌
                     setTimeout(()=>location.reload(), 4000); 
                 } else {
                     addLog('❌ 失敗: '+res.error, 'error'); 
@@ -515,51 +489,23 @@ export async function serveHTML(env, request) {
         }
 
         function copyApiUrl(type) {
-            const host = window.location.host; const parts = host.split('.');
-            let url = parts.length >= 3 ? (parts[0]=type, parts.join('.')) : type+'.'+host;
-            navigator.clipboard.writeText(url).then(()=>alert('已複製: '+url));
-        }
-
-        function openTokenModal() { document.getElementById('token-modal').style.display='flex'; }
-        async function saveToken() {
-            const tokenEl = document.getElementById('token-in');
-            const neverExpireEl = document.getElementById('never-expire');
-            const expireDaysEl = document.getElementById('expire-days');
+            const host = window.location.host;
+            let path = '';
+            if (type === 'fast') path = '/fast-ips.txt';
+            else if (type === 'browser') path = '/browser-ips.txt';
+            else if (type === 'all') path = '/ips';
             
-            if(!tokenEl || !neverExpireEl || !expireDaysEl) return alert('系統錯誤：找不到輸入框');
+            let url = 'https://' + host + path;
+            const urlObj = new URL(url);
             
-            const token = tokenEl.value;
-            const neverExpire = neverExpireEl.checked;
-            const expiresDays = parseInt(expireDaysEl.value) || 30;
-            
-            const res = await api('/admin-token', 'POST', {token, neverExpire, expiresDays});
-            if(res.success) {
-                alert('Token 保存成功');
-                location.reload();
-            } else {
-                alert('失敗: ' + res.error);
+            if (tokenConfig && tokenConfig.token) {
+                urlObj.searchParams.set('token', tokenConfig.token);
+            } else if (sessionId) {
+                urlObj.searchParams.set('session', sessionId);
             }
-        }
-        
-        function copyIP(ip) { navigator.clipboard.writeText(ip); alert('已複製'); }
-        function copyAllFastIPs() { 
-            const ips = Array.from(document.querySelectorAll('.ip-address')).map(el => el.innerText).join('\\n');
-            navigator.clipboard.writeText(ips); alert('已複製');
-        }
-        function openItdogModal() { document.getElementById('itdog-modal').style.display='flex'; }
-        function copyIPsForItdog() {
-            const ips = Array.from(document.querySelectorAll('.ip-address')).map(el => el.innerText).join('\\n');
-            if(ips) { navigator.clipboard.writeText(ips); window.open('https://www.itdog.cn/batch_tcping/', '_blank'); }
-        }
-
-        // 前端點選「隨機」按鈕時，自動生成隨機 Token 填入
-        function generateRandomTokenInModal() {
-            const tokenIn = document.getElementById('token-in');
-            if(!tokenIn) return;
-            let r = ''; 
-            const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; 
-            for(let i=0; i<32; i++) r += c.charAt(Math.floor(Math.random()*c.length)); 
-            tokenIn.value = r;
+            
+            const finalUrl = urlObj.toString();
+            navigator.clipboard.writeText(finalUrl).then(() => alert('已複製: ' + finalUrl));
         }
     </script>
 </body>
