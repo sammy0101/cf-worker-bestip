@@ -464,22 +464,29 @@ export async function serveHTML(env, request) {
                 if(res.success) { 
                     addLog(\`✅ 更新成功！目前庫存: \${res.totalIPs} 個 IP (已套用網段隨機抽樣模式)\`); 
                     
-                    // 重新整理前將日誌暫存至 sessionStorage
                     const logBox = document.getElementById('log-box');
                     if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
 
-                    // 迴圈讀取並逐條印出每個 CIDR 來源的提取數量
+                    // 動畫化：以 150ms 延遲逐條印出每個來源的提取狀態，富含動感
                     if (res.results && res.results.length) {
-                        res.results.forEach(item => {
-                            if (item.status === 'success') {
-                                addLog(\`➡️ 來源: \${item.name} | 提取: \${item.count} 個\`, 'info');
-                            } else {
-                                addLog(\`❌ 來源: \${item.name} | 失敗: \${item.error}\`, 'error');
-                            }
+                        res.results.forEach((item, index) => {
+                            setTimeout(() => {
+                                if (item.status === 'success') {
+                                    addLog(\`➡️ 來源: \${item.name} | 提取: \${item.count} 個\`, 'info');
+                                } else {
+                                    addLog(\`❌ 來源: \${item.name} | 失敗: \${item.error}\`, 'error');
+                                }
+                                // 每跑出一行，就更新一次暫存，確保重新整理後保留最完整的終端畫面
+                                if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
+                            }, (index + 1) * 150);
                         });
                     }
 
-                    setTimeout(()=>location.reload(), 4000); 
+                    // 所有動畫播完（29個來源約 4.3 秒）後，多留 2 秒緩衝再自動刷新，提供完美的閱讀時間
+                    const reloadDelay = (res.results ? res.results.length * 150 : 0) + 2000;
+                    setTimeout(() => {
+                        location.reload();
+                    }, reloadDelay); 
                 } else {
                     addLog('❌ 失敗: '+res.error, 'error'); 
                 }
