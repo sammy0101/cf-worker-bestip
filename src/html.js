@@ -22,7 +22,7 @@ export async function serveHTML(env, request) {
       sessionId = url.searchParams.get('session');
     }
 
-    // 已人工確認：此處最外層開頭為乾淨的單個反單引號，無任何反斜線 (\)
+    // 已確認：此處最外層開頭為乾淨的單個反單引號，無任何反斜線 (\)
     const html = `<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -65,6 +65,7 @@ export async function serveHTML(env, request) {
         /* 數據看板 - 工整左對齊監控版面 */
         .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
         .stat { background: var(--bg-card); padding: 16px 20px; border-radius: var(--radius); border: 1px solid var(--border); text-align: left; display: flex; flex-direction: column; justify-content: space-between; }
+        .stat:hover { border-color: var(--text-sub); }
         .stat-label { font-size: 0.725rem; color: var(--text-sub); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
         .stat-value { font-size: 1.6rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.04em; font-family: monospace; }
         
@@ -227,7 +228,7 @@ export async function serveHTML(env, request) {
         <!-- 雙欄式黃金比例工作台 (Golden Split Workspace) -->
         <div class="dashboard-grid">
             
-            <!-- 左欄主區塊：主控面板與日誌終端 -->
+            <!-- 左欄主區塊：主控面板、支援端口、與日誌終端 -->
             <div class="pane-main">
                 <div class="card">
                     <h2>📊 控制中心</h2>
@@ -287,11 +288,23 @@ export async function serveHTML(env, request) {
                         </div>
                         <div id="log-box" class="log-box"></div>
                     </div>
-                    
+                </div>
+
+                <!-- 支援端口資訊 (已由右側移至左欄下方，使版面配置更均衡) -->
+                <div class="card">
+                    <h2>📡 支援端口資訊</h2>
+                    <div style="margin-bottom: 16px;">
+                        <div style="color:#be123c; font-size:0.775rem; font-weight:700; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">HTTP 支援端口</div>
+                        <div class="port-box"><span class="port-tag tag-http">80</span><span class="port-tag tag-http">8080</span><span class="port-tag tag-http">8880</span><span class="port-tag tag-http">2052</span><span class="port-tag tag-http">2082</span><span class="port-tag tag-http">2086</span><span class="port-tag tag-http">2095</span></div>
+                    </div>
+                    <div>
+                        <div style="color:#1d4ed8; font-size:0.775rem; font-weight:700; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">HTTPS 支援端口</div>
+                        <div class="port-box"><span class="port-tag tag-https">443</span><span class="port-tag tag-https">2053</span><span class="port-tag tag-https">2083</span><span class="port-tag tag-https">2087</span><span class="port-tag tag-https">2096</span><span class="port-tag tag-https">8443</span></div>
+                    </div>
                 </div>
             </div>
             
-            <!-- 右欄側邊區塊：數據表格與端口資訊 -->
+            <!-- 右欄側邊區塊：單獨承載數據表格，享有完整高度 -->
             <div class="pane-side">
                 
                 <!-- 優選 IP 表格化名單 -->
@@ -320,19 +333,6 @@ export async function serveHTML(env, request) {
                             const coloStyle =['HKG', 'SJC', 'LAX', 'TPE'].includes(colo) ? 'background:#dcfce7; color:#166534;' : '';
                             return `<div class="ip-item" data-ip="${item.ip}"><div class="ip-info"><span class="colo-badge" style="${coloStyle}">${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result ${speedClass}">${item.latency}ms</span></div><button class="small-btn" onclick="copyIP('${item.ip}')">複製</button></div>`;
                         }).join('') : '<p style="text-align:center; padding:30px; color:#a1a1aa;">暫無數據，請點擊更新</p>'}
-                    </div>
-                </div>
-
-                <!-- 支援端口 -->
-                <div class="card">
-                    <h2>📡 支援端口資訊</h2>
-                    <div style="margin-bottom: 16px;">
-                        <div style="color:#be123c; font-size:0.775rem; font-weight:700; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">HTTP 支援端口</div>
-                        <div class="port-box"><span class="port-tag tag-http">80</span><span class="port-tag tag-http">8080</span><span class="port-tag tag-http">8880</span><span class="port-tag tag-http">2052</span><span class="port-tag tag-http">2082</span><span class="port-tag tag-http">2086</span><span class="port-tag tag-http">2095</span></div>
-                    </div>
-                    <div>
-                        <div style="color:#1d4ed8; font-size:0.775rem; font-weight:700; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">HTTPS 支援端口</div>
-                        <div class="port-box"><span class="port-tag tag-https">443</span><span class="port-tag tag-https">2053</span><span class="port-tag tag-https">2083</span><span class="port-tag tag-https">2087</span><span class="port-tag tag-https">2096</span><span class="port-tag tag-https">8443</span></div>
                     </div>
                 </div>
                 
