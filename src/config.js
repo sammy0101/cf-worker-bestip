@@ -1,6 +1,6 @@
 // src/config.js
 
-export const VERSION = "V4.0.1";             // 系統版本號
+export const VERSION = "V4.1.0";             // 系統版本號
 export const FAST_IP_COUNT = 25;             // 優質 IP 數量
 export const AUTO_TEST_MAX_IPS = 45;        // 定時任務測速最大數量 (安全限制在 45 以內)
 export const SAFE_SUBREQUEST_LIMIT = 45;    // 子請求安全硬上限，防止免費方案部署時發生異常
