@@ -22,7 +22,7 @@ export async function serveHTML(env, request) {
       sessionId = url.searchParams.get('session');
     }
 
-    // 經人工確認：此處最外層開頭為乾淨的單個反單引號，無任何反斜線 (\)
+    // 已人工確認：此處最外層開頭為乾淨的單個反單引號，無任何反斜線 (\)
     const html = `<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -44,7 +44,7 @@ export async function serveHTML(env, request) {
         }
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; line-height: 1.5; background: var(--bg-main); color: var(--text-main); padding: 32px 24px; transition: background 0.3s, color 0.3s; -webkit-font-smoothing: antialiased; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; line-height: 1.5; background: var(--bg-main); color: var(--text-main); padding: 24px; transition: background 0.3s, color 0.3s; -webkit-font-smoothing: antialiased; }
         .container { max-width: 1280px; margin: 0 auto; }
         
         /* 頂部標頭 - 極簡風格 */
@@ -549,7 +549,7 @@ export async function serveHTML(env, request) {
         }
     </script>
 </body>
-</html>\`;
+</html>`;
 
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
