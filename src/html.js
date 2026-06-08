@@ -22,6 +22,7 @@ export async function serveHTML(env, request) {
       sessionId = url.searchParams.get('session');
     }
 
+    // 經人工確認：此處最外層開頭為乾淨的單個反單引號，無任何反斜線 (\)
     const html = `<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -29,24 +30,24 @@ export async function serveHTML(env, request) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cloudflare 優選 IP 測速平台 (${VERSION})</title>
     <style>
-        /* 專業級 Zinc & Obsidian 莫蘭迪灰度變數設定 */
+        /* 專業級 Zinc & Obsidian 黑曜石與鋅灰配色變數設定 */
         :root { 
             --primary: #4f46e5;         /* 靛藍專注色 */
             --primary-hover: #4338ca;
-            --bg-main: #fafafa;         /* 極簡灰白 */
+            --bg-main: #fcfcfd;         /* 極簡灰白 */
             --bg-card: #ffffff;         /* 邊界卡片 */
             --bg-inner: #f4f4f5;        /* 鋅灰 Zinc-100 */
             --border: #e4e4e7;          /* 細線邊框 Zinc-200 */
-            --text-main: #09090b;       /* 深黑 Obsidian Zinc-950 */
+            --text-main: #09090b;       /* 深黑 Obsidian */
             --text-sub: #71717a;        /* 灰色 Zinc-500 */
-            --radius: 12px;             /* 幾何硬圓角 */
+            --radius: 12px;             /* 統一圓角弧度 */
         }
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; line-height: 1.5; background: var(--bg-main); color: var(--text-main); padding: 32px 24px; transition: background 0.3s, color 0.3s; -webkit-font-smoothing: antialiased; }
-        .container { max-width: 1200px; margin: 0 auto; }
+        .container { max-width: 1280px; margin: 0 auto; }
         
-        /* 頂部標頭 - 極簡無裝飾 */
+        /* 頂部標頭 - 極簡風格 */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
         .header-content h1 { font-size: 1.5rem; color: var(--text-main); font-weight: 800; letter-spacing: -0.03em; }
         .header-content p { font-size: 0.8rem; color: var(--text-sub); margin-top: 4px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
@@ -54,23 +55,26 @@ export async function serveHTML(env, request) {
         .social-link:hover { color: var(--primary); border-color: var(--primary); background: var(--bg-main); }
 
         /* 卡片容器 - 扁平輕陰影 */
-        .card { background: var(--bg-card); border-radius: var(--radius); padding: 32px; margin-bottom: 24px; border: 1px solid var(--border); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02); }
-        .card h2 { font-size: 1.05rem; color: var(--text-main); margin-bottom: 24px; display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.02em; }
+        .card { background: var(--bg-card); border-radius: var(--radius); padding: 28px; margin-bottom: 24px; border: 1px solid var(--border); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.01); }
+        .card h2 { font-size: 1.05rem; color: var(--text-main); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.02em; }
+        
+        /* 雙欄式黃金分割排版 (Split-Pane Grid) */
+        .dashboard-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; align-items: start; }
+        @media (max-width: 1024px) { .dashboard-grid { grid-template-columns: 1fr; } }
         
         /* 數據看板 - 工整左對齊監控版面 */
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 28px; }
-        .stat { background: var(--bg-card); padding: 20px 24px; border-radius: var(--radius); border: 1px solid var(--border); text-align: left; transition: all 0.2s; position: relative; }
-        .stat:hover { border-color: var(--text-sub); }
-        .stat-label { font-size: 0.75rem; color: var(--text-sub); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
-        .stat-value { font-size: 1.8rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.04em; font-family: monospace; }
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+        .stat { background: var(--bg-card); padding: 16px 20px; border-radius: var(--radius); border: 1px solid var(--border); text-align: left; display: flex; flex-direction: column; justify-content: space-between; }
+        .stat-label { font-size: 0.725rem; color: var(--text-sub); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
+        .stat-value { font-size: 1.6rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.04em; font-family: monospace; }
         
-        /* 高級半透明色調按鈕 (Tinted Buttons) */
-        .button-group { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
-        .button { padding: 8px 18px; border: 1px solid transparent; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); background: var(--primary); color: white; display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; text-decoration: none; height: 38px; }
+        /* 按鈕群組與基礎按鈕樣式 */
+        .button-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+        .button { padding: 8px 16px; border: 1px solid transparent; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); background: var(--primary); color: white; display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; text-decoration: none; height: 38px; }
         .button:hover { background: var(--primary-hover); transform: translateY(-1px); }
         .button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
         
-        /* 優雅微色調按鈕（不再使用刺眼亮色，改用極簡柔和配色） */
+        /* 高級半透明色調按鈕 (Tinted / Ghost Buttons) */
         .button-success { background: rgba(16, 185, 129, 0.08); color: #059669; border: 1px solid rgba(16, 185, 129, 0.15); } 
         .button-success:hover { background: rgba(16, 185, 129, 0.12); border-color: #059669; }
         
@@ -79,30 +83,28 @@ export async function serveHTML(env, request) {
         
         .button-purple { background: rgba(99, 102, 241, 0.08); color: #4f46e5; border: 1px solid rgba(99, 102, 241, 0.15); } 
         .button-purple:hover { background: rgba(99, 102, 241, 0.12); border-color: #4f46e5; }
-        
-        .button-warning { background: rgba(245, 158, 11, 0.08); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.15); } 
-        .button-warning:hover { background: rgba(245, 158, 11, 0.12); border-color: #d97706; }
 
         /* 支援端口資訊標籤 */
         .port-box { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .port-tag { padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85rem; border: 1px solid transparent; font-weight: 700; }
-        .tag-http { background: #fff1f2; color: #991b1b; border-color: #ffe4e6; } 
+        .tag-http { background: #fef2f2; color: #991b1b; border-color: #fee2e2; } 
         .tag-https { background: #f0f9ff; color: #075985; border-color: #e0f2fe; }
 
-        /* 表格化優選列表 */
-        .ip-list { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-        .ip-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 24px; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s ease; }
+        /* 表格化優選列表設計 */
+        .ip-table-header { display: grid; grid-template-columns: 80px 1fr 70px 60px; padding: 10px 20px; font-size: 0.725rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--border); border-bottom: none; background: var(--bg-inner); border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
+        .ip-list { border: 1px solid var(--border); border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); overflow: hidden; }
+        .ip-item { display: grid; grid-template-columns: 80px 1fr 70px 60px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s ease; }
         .ip-item:hover { background: var(--bg-inner); }
         .ip-item:last-child { border-bottom: none; }
-        .ip-info { display: flex; align-items: center; gap: 20px; flex: 1; }
         
-        /* 表格欄位嚴格對齊 */
-        .colo-badge { font-size: 0.725rem; padding: 4px 10px; border-radius: 6px; background: var(--bg-inner); color: var(--text-sub); font-weight: 700; text-align: center; white-space: nowrap; border: 1px solid var(--border); min-width: 90px; letter-spacing: 0.02em; }
-        .ip-address { font-family: monospace; font-weight: 700; font-size: 0.95rem; min-width: 160px; color: var(--text-main); }
-        .speed-result { font-size: 0.75rem; padding: 4px 12px; border-radius: 6px; background: var(--bg-inner); min-width: 75px; text-align: center; font-weight: 700; border: 1px solid var(--border); color: var(--text-sub); }
+        /* 利用 display: contents 讓子節點完全融入 Grid 中對齊 */
+        .ip-info { display: contents; }
+        .colo-badge { font-size: 0.725rem; padding: 3px 8px; border-radius: 6px; background: var(--bg-inner); color: var(--text-sub); font-weight: 700; text-align: center; white-space: nowrap; border: 1px solid var(--border); max-width: 70px; letter-spacing: 0.02em; }
+        .ip-address { font-family: monospace; font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
+        .speed-result { font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; background: var(--bg-inner); max-width: 65px; text-align: center; font-weight: 700; border: 1px solid var(--border); color: var(--text-sub); }
         .speed-fast-bg { background: rgba(16, 185, 129, 0.08); color: #065f46; border-color: rgba(16, 185, 129, 0.15); } 
         
-        .small-btn { padding: 5px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-main); font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: .15s; }
+        .small-btn { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-main); font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: .15s; }
         .small-btn:hover { background: var(--bg-inner); border-color: var(--text-sub); }
 
         /* 下拉選單與防消失感知橋樑 */
@@ -134,8 +136,18 @@ export async function serveHTML(env, request) {
         .dropdown-content a:first-child { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
         .dropdown-content a:last-child { border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); border-bottom: none; }
 
-        /* 終端日誌盒 - Obsidian 深色風格 */
-        .log-box { background: #09090b; color: #38bdf8; font-family: monospace; font-size: 0.775rem; padding: 20px; border-radius: var(--radius); margin-top: 24px; height: 180px; overflow-y: auto; border: 1px solid #27272a; box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.1); }
+        /* 終端視窗 (Terminal Shell Window Container) */
+        .terminal-window { margin-top: 24px; border-radius: var(--radius); border: 1px solid #27272a; overflow: hidden; background: #09090b; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .terminal-header { background: #18181b; padding: 10px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #27272a; }
+        .terminal-dots { display: flex; gap: 6px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .dot-red { background: #ef4444; }
+        .dot-yellow { background: #f59e0b; }
+        .dot-green { background: #10b981; }
+        .terminal-title { color: #a1a1aa; font-size: 0.725rem; font-weight: 700; font-family: monospace; text-transform: uppercase; letter-spacing: 0.06em; }
+        .terminal-clear { background: transparent; border: none; color: #52525b; font-size: 0.725rem; font-weight: 600; cursor: pointer; font-family: monospace; transition: color 0.15s; }
+        .terminal-clear:hover { color: #fafafa; }
+        .log-box { background: #09090b; color: #38bdf8; font-family: "Fira Code", "JetBrains Mono", monospace; font-size: 0.75rem; padding: 16px 20px; height: 180px; overflow-y: auto; border: none; }
         .log-line { margin-bottom: 5px; line-height: 1.5; letter-spacing: 0.01em; }
         .log-error { color: #f87171; }
         .log-info { color: #34d399; }
@@ -177,8 +189,8 @@ export async function serveHTML(env, request) {
             .colo-badge { background: #27272a; color: #e4e4e7; border-color: #3f3f46; }
             .speed-fast-bg { background: rgba(52, 211, 153, 0.08); color: #a7f3d0; border-color: rgba(52, 211, 153, 0.15); }
             
-            .tag-http { background: #450a0a; color: #fecdd3; border-color: #7f1d1d; }
-            .tag-https { background: #082f49; color: #bae6fd; border-color: #0c4a6e; }
+            .tag-http { background: #450a0a; color: #fecdd3; border-color: #78350f; }
+            .tag-https { background: #082f49; color: #bae6fd; border-color: #075985; }
             .progress-bar { background: var(--bg-inner); }
         }
     </style>
@@ -212,78 +224,120 @@ export async function serveHTML(env, request) {
             </div>
         </div>
         ` : `
-        <!-- 主控台 -->
-        <div class="card">
-            <h2>📊 系統狀態</h2>
-            <div class="stats">
-                <div class="stat">
-                    <div class="stat-label">IP 總數</div>
-                    <div class="stat-value">${data.count || 0}</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">更新時間</div>
-                    <div class="stat-value">${data.lastUpdated ? new Date(data.lastUpdated).toLocaleTimeString('en-US', { timeZone: 'Asia/Hong_Kong', hour12: false }) : '從未'}</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-label">優質 IP</div>
-                    <div class="stat-value">${fastIPs.length}</div>
+        <!-- 雙欄式黃金比例工作台 (Golden Split Workspace) -->
+        <div class="dashboard-grid">
+            
+            <!-- 左欄主區塊：主控面板與日誌終端 -->
+            <div class="pane-main">
+                <div class="card">
+                    <h2>📊 控制中心</h2>
+                    
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="stat-label">IP 總數</div>
+                            <div class="stat-value">${data.count || 0}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">更新時間</div>
+                            <div class="stat-value">${data.lastUpdated ? new Date(data.lastUpdated).toLocaleTimeString('en-US', { timeZone: 'Asia/Hong_Kong', hour12: false }) : '從未'}</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-label">優質 IP</div>
+                            <div class="stat-value">${fastIPs.length}</div>
+                        </div>
+                    </div>
+                    
+                    <div class="button-group">
+                        <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
+                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 瀏覽器測速</button>
+                        
+                        <div class="dropdown"><button class="button button-success">🚀 下載中心 ▼</button>
+                            <div class="dropdown-content">
+                                <a href="/fast-ips.txt" download="cloudflare_fast_ips.txt">🚀 下載後端優選 IP</a>
+                                <a onclick="downloadBrowserResults()">⚡ 下載本機測速結果</a>
+                                <a href="/ips" download="all_ips.txt">📦 下載完整 IP 庫</a>
+                            </div>
+                        </div>
+                        <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
+                            <div class="dropdown-content">
+                                <a href="/fast-ips.txt" target="_blank">🚀 查看後端優選 IP</a>
+                                <a href="/browser-ips.txt" target="_blank">⚡ 查看本機測速結果</a>
+                                <a href="/ip.txt" target="_blank">📦 查看完整 IP 庫</a>
+                            </div>
+                        </div>
+                        <div class="dropdown"><button class="button button-purple">🔌 複製 API 連結 ▼</button>
+                            <div class="dropdown-content">
+                                <a onclick="copyApiUrl('fast')">🚀 複製後端優選 IP API</a>
+                                <a onclick="copyApiUrl('browser')">⚡ 複製本機測速結果 API</a>
+                                <a onclick="copyApiUrl('all')">📦 複製完整 IP 庫 API</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 擬真開發者終端盒 (Developer Terminal Console Container) -->
+                    <div class="terminal-window">
+                        <div class="terminal-header">
+                            <div class="terminal-dots">
+                                <span class="dot dot-red"></span>
+                                <span class="dot dot-yellow"></span>
+                                <span class="dot dot-green"></span>
+                            </div>
+                            <span class="terminal-title">Runner Console</span>
+                            <button class="terminal-clear" onclick="clearLog()">Clear</button>
+                        </div>
+                        <div id="log-box" class="log-box"></div>
+                    </div>
+                    
                 </div>
             </div>
-            <div class="button-group">
-                <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
-                <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 瀏覽器測速</button>
+            
+            <!-- 右欄側邊區塊：數據表格與端口資訊 -->
+            <div class="pane-side">
                 
-                <div class="dropdown"><button class="button button-success">🚀 下載中心 ▼</button>
-                    <div class="dropdown-content">
-                        <a href="/fast-ips.txt" download="cloudflare_fast_ips.txt">🚀 下載後端優選 IP</a>
-                        <a onclick="downloadBrowserResults()">⚡ 下載本機測速結果</a>
-                        <a href="/ips" download="all_ips.txt">📦 下載完整 IP 庫</a>
+                <!-- 優選 IP 表格化名單 -->
+                <div class="card" style="padding-bottom: 12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                        <h2>🏆 優選 IP 列表</h2>
+                        <button class="small-btn" onclick="copyAllFastIPs()">📋 複製所有</button>
+                    </div>
+                    
+                    <div class="progress-bar" id="progress"><div class="progress-fill" id="progress-fill"></div></div>
+                    <div id="status-text" style="text-align:center; font-size:0.8rem; color:var(--text-sub); margin-bottom:10px;"></div>
+                    
+                    <!-- 表頭 -->
+                    <div class="ip-table-header">
+                        <span>機房</span>
+                        <span>IP 位址</span>
+                        <span>延遲</span>
+                        <span style="text-align:right;">操作</span>
+                    </div>
+                    <div class="ip-list" id="ip-list">
+                        ${fastIPs.length > 0 ? fastIPs.map(item => {
+                            const speedClass = item.latency < 200 ? 'speed-fast-bg' : '';
+                            const colo = item.colo || 'UNK';
+                            const cnName = COLO_MAP[colo] ? ` (${COLO_MAP[colo]})` : '';
+                            const coloDisplay = colo + cnName;
+                            const coloStyle =['HKG', 'SJC', 'LAX', 'TPE'].includes(colo) ? 'background:#dcfce7; color:#166534;' : '';
+                            return `<div class="ip-item" data-ip="${item.ip}"><div class="ip-info"><span class="colo-badge" style="${coloStyle}">${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result ${speedClass}">${item.latency}ms</span></div><button class="small-btn" onclick="copyIP('${item.ip}')">複製</button></div>`;
+                        }).join('') : '<p style="text-align:center; padding:30px; color:#a1a1aa;">暫無數據，請點擊更新</p>'}
                     </div>
                 </div>
-                <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
-                    <div class="dropdown-content">
-                        <a href="/fast-ips.txt" target="_blank">🚀 查看後端優選 IP</a>
-                        <a href="/browser-ips.txt" target="_blank">⚡ 查看本機測速結果</a>
-                        <a href="/ip.txt" target="_blank">📦 查看完整 IP 庫</a>
-                    </div>
-                </div>
-                <div class="dropdown"><button class="button button-purple">🔌 複製 API 連結 ▼</button>
-                    <div class="dropdown-content">
-                        <a onclick="copyApiUrl('fast')">🚀 複製後端優選 IP API</a>
-                        <a onclick="copyApiUrl('browser')">⚡ 複製本機測速結果 API</a>
-                        <a onclick="copyApiUrl('all')">📦 複製完整 IP 庫 API</a>
-                    </div>
-                </div>
-            </div>
-            <div id="log-box" class="log-box"></div>
-        </div>
 
-        <div class="card">
-            <h2>📡 支援端口資訊</h2>
-            <div style="margin-bottom: 20px;">
-                <div style="color:#be123c; font-weight:600; margin-bottom:5px;">HTTP 支援端口：</div>
-                <div class="port-box"><span class="port-tag tag-http">80</span><span class="port-tag tag-http">8080</span><span class="port-tag tag-http">8880</span><span class="port-tag tag-http">2052</span><span class="port-tag tag-http">2082</span><span class="port-tag tag-http">2086</span><span class="port-tag tag-http">2095</span></div>
+                <!-- 支援端口 -->
+                <div class="card">
+                    <h2>📡 支援端口資訊</h2>
+                    <div style="margin-bottom: 16px;">
+                        <div style="color:#be123c; font-size:0.775rem; font-weight:700; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">HTTP 支援端口</div>
+                        <div class="port-box"><span class="port-tag tag-http">80</span><span class="port-tag tag-http">8080</span><span class="port-tag tag-http">8880</span><span class="port-tag tag-http">2052</span><span class="port-tag tag-http">2082</span><span class="port-tag tag-http">2086</span><span class="port-tag tag-http">2095</span></div>
+                    </div>
+                    <div>
+                        <div style="color:#1d4ed8; font-size:0.775rem; font-weight:700; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">HTTPS 支援端口</div>
+                        <div class="port-box"><span class="port-tag tag-https">443</span><span class="port-tag tag-https">2053</span><span class="port-tag tag-https">2083</span><span class="port-tag tag-https">2087</span><span class="port-tag tag-https">2096</span><span class="port-tag tag-https">8443</span></div>
+                    </div>
+                </div>
+                
             </div>
-            <div>
-                <div style="color:#1d4ed8; font-weight:600; margin-bottom:5px;">HTTPS 支援端口：</div>
-                <div class="port-box"><span class="port-tag tag-https">443</span><span class="port-tag tag-https">2053</span><span class="port-tag tag-https">2083</span><span class="port-tag tag-https">2087</span><span class="port-tag tag-https">2096</span><span class="port-tag tag-https">8443</span></div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div style="display:flex; justify-content:space-between; margin-bottom:15px;"><h2>🏆 優選 IP 列表</h2><button class="small-btn" onclick="copyAllFastIPs()">📋 複製所有 IP</button></div>
-            <div class="progress-bar" id="progress"><div class="progress-fill" id="progress-fill"></div></div>
-            <div id="status-text" style="text-align:center; font-size:0.85rem; color:var(--text-sub); margin-bottom:10px;"></div>
-            <div class="ip-list" id="ip-list">
-                ${fastIPs.length > 0 ? fastIPs.map(item => {
-                    const speedClass = item.latency < 200 ? 'speed-fast-bg' : '';
-                    const colo = item.colo || 'UNK';
-                    const cnName = COLO_MAP[colo] ? ` (${COLO_MAP[colo]})` : '';
-                    const coloDisplay = colo + cnName;
-                    const coloStyle =['HKG', 'SJC', 'LAX', 'TPE'].includes(colo) ? 'background:#dcfce7; color:#166534;' : '';
-                    return `<div class="ip-item" data-ip="${item.ip}"><div class="ip-info"><span class="colo-badge" style="${coloStyle}">${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result ${speedClass}">${item.latency}ms</span></div><button class="small-btn" onclick="copyIP('${item.ip}')">複製</button></div>`;
-                }).join('') : '<p style="text-align:center; padding:30px; color:#94a3b8;">暫無數據，請點擊更新</p>'}
-            </div>
+            
         </div>
         `}
     </div>
@@ -495,7 +549,7 @@ export async function serveHTML(env, request) {
         }
     </script>
 </body>
-</html>`;
+</html>\`;
 
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
 }
