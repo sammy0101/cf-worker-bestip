@@ -483,12 +483,9 @@ export async function serveHTML(env, request) {
 
         function copyApiUrl(type) {
             const host = window.location.host;
-            let path = '';
-            if (type === 'fast') path = '/fast-ips.txt';
-            else if (type === 'browser') path = '/browser-ips.txt';
-            else if (type === 'all') path = '/ips';
-            
-            let url = 'https://' + host + path;
+            const parts = host.split('.');
+            let subdomainHost = parts.length >= 3 ? (parts[0] = type, parts.join('.')) : type + '.' + host;
+            let url = 'https://' + subdomainHost;
             navigator.clipboard.writeText(url).then(() => alert('已複製: ' + url));
         }
     </script>
