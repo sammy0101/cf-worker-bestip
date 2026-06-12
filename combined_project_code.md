@@ -1,89 +1,121 @@
 # Complete Project Codebase
-Generated on: Thu Jun 11 10:11:45 UTC 2026
+Generated on: Fri Jun 12 12:39:55 UTC 2026
 
-## File: .github/workflows/combine-code.yml
-````yml
-name: Generate All Codebase to MD
+## File: README.md
+````md
+# Cloudflare 優選 IP 測速平台
 
-on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - 'combined_project_code.md' # 避免此檔案自身更新引發無限循環
-  workflow_dispatch: # 支援在 GitHub 網頁上手動觸發執行
+這是一個基於 Cloudflare Workers 運作的輕量化優選 IP 收集、測速與訂閱發佈平台。系統會定期從多個優良的第三方來源抓取 CIDR 網段，自動進行隨機抽樣、多執行緒測速、過濾，並保存最優質的節點 IP 提供下載。
 
-permissions:
-  contents: write
+本專案採用**優雅的模組化架構**設計，並導入了**動態官方 IP 安全過濾防線**，確保所有匯出的 IP 皆 100% 屬於官方原生機房節點。
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+---
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+## 🚀 一鍵部署 (One-Click Deploy)
 
-      - name: Combine All Files into MD
-        run: |
-          OUT_FILE="combined_project_code.md"
-          echo "# Complete Project Codebase" > "$OUT_FILE"
-          echo "Generated on: $(date)" >> "$OUT_FILE"
-          echo "" >> "$OUT_FILE"
+點選下方按鈕，即可直接將此專案發佈至您的 Cloudflare 帳戶中：
 
-          # 遍歷專案內的所有檔案，排除依賴、Git 歷史、打包產物及二進位檔案
-          find . -type f \
-            -not -path "*/node_modules/*" \
-            -not -path "*/.git/*" \
-            -not -path "*/dist/*" \
-            -not -name "package-lock.json" \
-            -not -name "yarn.lock" \
-            -not -name "pnpm-lock.yaml" \
-            -not -name "$OUT_FILE" \
-            -not -name "*.png" \
-            -not -name "*.jpg" \
-            -not -name "*.jpeg" \
-            -not -name "*.gif" \
-            -not -name "*.ico" \
-            -not -name "*.woff*" \
-            -not -name "*.ttf" | while read -r file; do
-              
-              # 取得相對路徑與副檔名
-              rel_path="${file#./}"
-              ext="${file##*.}"
-              
-              # 如果無副檔名，清除變數避免格式混亂
-              if [ "$ext" = "$rel_path" ]; then
-                ext=""
-              fi
-              
-              # 寫入檔案標題
-              echo "## File: $rel_path" >> "$OUT_FILE"
-              # 使用四個反單引號（````）包裹，防止內部程式碼的三個反單引號造成排版衝突
-              echo "\`\`\`\`$ext" >> "$OUT_FILE"
-              cat "$file" >> "$OUT_FILE"
-              echo "" >> "$OUT_FILE"
-              echo "\`\`\`\`" >> "$OUT_FILE"
-              echo "" >> "$OUT_FILE"
-          done
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sammy0101/cf-worker-bestip)
 
-      - name: Commit and Push changes
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add combined_project_code.md
-          
-          if git diff --staged --quiet; then
-            echo "No changes in codebase."
-          else
-            git commit -m "docs: auto-generate complete codebase [skip ci]"
-            git push origin main
-          fi
+> ⚠️ **一鍵部署後的重要提醒**：
+> 1. 部署完成後，請務必至 Cloudflare Workers 後台建立一個 **KV 命名空間**，命名為 `IP_STORAGE`，並綁定至您的 Worker。
+> 2. 請至 **「Settings」 (設定) -> 「Variables」 (變數)」** 設定您的加密管理員密碼 `ADMIN_PASSWORD` [3]。
 
-````
+---
 
-## File: .github/workflows/deploy.yml
-````yml
+## 🌟 核心功能特色
+
+* 🛡️ **動態官方安全過濾（防範惡意 IP 注入）**：在 IP 導入第一關，系統會**動態從 Cloudflare 官方 API** (`https://api.cloudflare.com/client/v4/ips`) 獲取最新的官方 IPv4 網段 [1]，自動剔除任何意外混入的第三方「反代 IP」或惡意代理節點。
+* 📊 **雙欄式黃金分割排版 (60/40 Split-Pane)**：比照 Vercel、Linear 等現代化 SaaS 產品，將版面重構為雙欄式設計：
+  * **左側主面板 (60%)**：主控面板、一體化開發者終端盒與端口資訊，構成全能「控制中心」。
+  * **右側側邊欄 (40%)**：專屬於優選 IP 列表，呈現工整嚴謹的專業監控級數據表。
+* 🖥️ **一體化高階終端盒（Terminal Console）**：日誌盒升級為帶有視窗控制點、Console 狀態與一鍵 Clear 的擬真終端介面。
+* 📏 **數據欄位網格對齊**：利用 CSS 的 `display: contents;` 對齊技術，使機房代碼、IP 位址、測速數值與複製按鈕呈現完美、無偏差的垂直對齊邊界。
+* ⚡ **獨立的前/後端測速上限**：
+  * **後台自動排程（每 6 小時一次）**：限制在 **45 個** 以內，完美貼合免費版單次 50 次子請求的硬限制 [2]。
+  * **前台瀏覽器手動測速**：允許發起 **1000 個** 以上的大範圍超深過濾，互不干擾、體驗流暢。
+* 🔌 **細節與交互優化**：
+  * **日誌記憶還原**：點選「立即更新庫」自動重整網頁後，各個來源詳細的「提取統計數據」依然會保存在畫面上，直到點選下一個指令為止。
+  * **選單防消失橋樑**：下拉選單內建「隱形滑鼠感知橋樑」，解決了因滑鼠慢速移動而導致下拉選單意外關閉的痛點。
+
+---
+
+## 📂 專案模組檔案結構
+
+本專案推薦使用以下模組化目錄結構進行管理與自動部署：
+
+```text
+你的專案目錄/
+├── wrangler.toml           # 專案設定檔 (含每 6 小時定時排程配置)
+├── .github/
+│   └── workflows/
+│       └── deploy.yml      # GitHub Actions 自動部署腳本 (支援手動與自動觸發)
+└── src/
+    ├── config.js           # 靜態常數、亞洲優化源與機房代碼
+    ├── utils.js            # 基礎工具 (IP 轉換、JSON 回應、CORS 等)
+    ├── auth.js             # 權限驗證、Session 登入、Token 生成
+    ├── ip.js               # IP 解析、動態安全校驗、前/後端測速 API
+    ├── html.js             # 前端 HTML 介面與 CSS 樣式
+    └── index.js            # 路由調度與排程入口
+```
+
+---
+
+## 🌐 自訂子網域 API 串接與設定教學
+
+本系統支援透過不同的**子網域首碼（Subdomain Prefixes）**直接獲取對應的純文字 API 數據。
+
+### ⚠️ 重要限制說明（為什麼預設的 `.workers.dev` 無法使用子網域？）
+Cloudflare 預設分配的 `xxx.workers.dev` 網域其 SSL 憑證僅支援單級子網域（`*.workers.dev`）。如果您嘗試存取 `fast.xxx.workers.dev`，會因為憑證不匹配與 DNS 無法解析而失敗。
+
+**若要使用子網域 API 功能，您必須綁定您自己的「自訂網域」（Custom Domain，例如 `yourdomain.com`）：**
+
+1. 登入 Cloudflare 後台，點選您的 Worker 專案（`cf-worker-bestip`）。
+2. 切換到 **「Settings」（設定）** -> **「Triggers」（觸發器）** 索引標籤。
+3. 找到 **「Custom Domains」（自訂網域）**，點選 **「Add Custom Domain」** 新增：
+   - `fast.yourdomain.com` (後端優選)
+   - `browser.yourdomain.com` (本機測速)
+   - `all.yourdomain.com` (完整 IP 庫)
+
+### 📊 子網域 API 連結對照表
+
+在主控台點選 **「🔌 複製 API 連結 ▼」**，系統會自動在最前方替換或補上對應的子網域，並直接附帶 `https://` 協定：
+
+| 複製按鈕 | 自動生成之子網域 API | 獲取數據內容 |
+| :--- | :--- | :--- |
+| **複製後端優選 IP API** | `https://fast.yourdomain.com` | 🚀 **後端自動優選 IP** (每 6 小時自動更新) |
+| **複製本機測速結果 API** | `https://browser.yourdomain.com` | ⚡ **瀏覽器本機測速結果** (由前端測速後上傳的數據) |
+| **複製完整 IP 庫 API** | `https://all.yourdomain.com` | 📦 **完整備用 IP 庫** (經過安全性校驗的所有官方 IP) |
+
+---
+
+## 🛠️ GitHub Actions 自動部署指南
+
+Wrangler（Cloudflare 官方編譯工具）會自動順著 `src/index.js` 的 `import` 宣告將所有拆分的檔案打包壓縮，您不需要手動進行繁瑣的編譯。
+
+### 步驟 1：配置本地 `wrangler.toml`
+
+請在專案根目錄下建立 `wrangler.toml`，並設定 **每 6 小時定時任務**：
+
+```toml
+name = "cf-worker-bestip"
+main = "src/index.js"
+compatibility_date = "2024-03-01"
+
+# KV 命名空間綁定
+[[kv_namespaces]]
+binding = "IP_STORAGE"
+id = "KV_ID_PLACEHOLDER"
+
+# ----------------- 每 6 小時定時觸發活動設定 -----------------
+[triggers]
+crons = ["0 */6 * * *"]
+```
+
+### 步驟 2：配置 GitHub Actions 工作流
+在 `.github/workflows/deploy.yml` 建立以下部署腳本：
+
+```yaml
 name: Deploy Worker
 
 on:
@@ -110,216 +142,26 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+```
 
-````
+### 步驟 3：在 GitHub 設定 Secrets
+前往您 GitHub 專案的 **Settings -> Secrets and variables -> Actions**，新增以下 Secrets：
+1. `CLOUDFLARE_API_TOKEN`：您的 Cloudflare 編輯權限 API Token。
+2. `CLOUDFLARE_ACCOUNT_ID`：您的 Cloudflare 帳戶 ID。
+3. `CF_KV_ID`：您建立的 KV 命名空間 ID。
 
-## File: src/config.js
-````js
-// src/config.js
+---
 
-export const VERSION = "V4.1.0";             // 系統版本號
-export const FAST_IP_COUNT = 20;             // 優質 IP 數量
-export const AUTO_TEST_MAX_IPS = 45;        // 定時任務測速最大數量 (安全限制在 45 以內)
-export const SAFE_SUBREQUEST_LIMIT = 45;    // 子請求安全硬上限，防止免費方案部署時發生異常
-export const BROWSER_TEST_MAX_IPS = 1000;    // 新增：瀏覽器測速的最大數量 (可設定 500 甚至更高)
+## 🔒 敏感資料安全指引
 
-// IP 來源網址列表 (亞洲優化庫)
-export const CIDR_SOURCE_URLS = [
-    'https://bestcf.pages.dev/uouin/all.txt',
-    'https://bestcf.pages.dev/wetest/ipv4.txt',
-    'https://bestcf.pages.dev/moistr/all.txt',
-    'https://bestcf.pages.dev/gslege/Cfxyz.txt',
-    'https://bestcf.pages.dev/gslege/SG.txt',
-    'https://bestcf.pages.dev/gslege/US.txt',
-    'https://bestcf.pages.dev/gslege/JP.txt',
-    'https://bestcf.pages.dev/cfyes/ipv4.txt',
-    'https://bestcf.pages.dev/nirevil/ipv4.txt',
-    'https://raw.githubusercontent.com/ymyuuu/IPDB/refs/heads/main/BestCF/bestcfv4.txt',
-    'https://bestcf.pages.dev/zhixuanwang/ipv4-onlyip.txt',
-    'https://raw.githubusercontent.com/joname1/BestCFip/refs/heads/main/ipv4.txt',
-    'https://raw.githubusercontent.com/Senflare/Senflare-IP/refs/heads/main/IPlist-Pro.txt',
-    'https://bestcf.pages.dev/vvhan/ipv4.txt',
-    'https://bestcf.pages.dev/ircf/ipv4.txt',
-    'https://raw.githubusercontent.com/gshtwy/CF-DNS-Clone/refs/heads/main/wetest-cloudflare-v4.txt',
-    'https://090227.pages.dev/bestcf?isp=all&ips=20',
-    'https://090227.pages.dev/bestcf?isp=ct&ips=50',
-];
-
-// 全球機房代碼對照表
-export const COLO_MAP = {
-    'HKG': '香港', 'TPE': '台北', 'NRT': '東京', 'KIX': '大阪', 'ICN': '首爾', 'FUK': '福岡', 'OKA': '沖繩', 'CTS': '札幌', 'KHH': '高雄',
-    'SIN': '新加坡', 'KUL': '吉隆坡', 'BKK': '曼谷', 'MNL': '馬尼拉', 'SGN': '胡志明市', 'HAN': '河內', 'CGK': '雅加達', 'KNO': '棉蘭', 'DPS': '峇里島', 'PNH': '金邊', 'RGN': '仰光', 'VTE': '永珍',
-    'LAX': '洛杉磯', 'SJC': '聖荷西', 'SFO': '舊金山', 'SEA': '西雅圖', 'PDX': '波特蘭', 'YVR': '溫哥華', 'SAN': '聖地牙哥', 'PHX': '鳳凰城', 'LAS': '拉斯維加斯', 'SMF': '沙加緬度', 'SLC': '鹽湖城',
-    'JFK': '紐約', 'EWR': '紐華克', 'ORD': '芝加哥', 'IAD': '華盛頓', 'MIA': '邁阿密', 'DFW': '達拉斯', 'IAH': '休士頓', 'ATL': '亞特蘭大', 'YYZ': '多倫多', 'YUL': '蒙特婁', 'DEN': '丹佛', 'BOS': '波士頓', 'PHL': '費城', 'DTW': '底特律', 'MSP': '明尼阿波利斯',
-    'LHR': '倫敦', 'AMS': '阿姆斯特丹', 'FRA': '法蘭克福', 'CDG': '巴黎', 'MAD': '馬德里', 'ZRH': '蘇黎世', 'MXP': '米蘭', 'VIE': '維也納', 'ARN': '斯德哥爾摩', 'OSL': '奧斯陸', 'CPH': '哥本哈根', 'HEL': '赫爾辛基', 'WAW': '華沙', 'PRG': '布拉格', 'BUD': '布達佩斯', 'OTP': '布加勒斯特', 'ATH': '雅典', 'IST': '伊斯坦堡', 'DUB': '都裂林', 'BRU': '布魯塞爾', 'MUC': '慕尼黑', 'TXL': '柏林', 'LIS': '里斯本', 'FCO': '羅馬', 'BCN': '巴塞隆納',
-    'SYD': '雪梨', 'MEL': '墨爾本', 'BNE': '布里斯本', 'PER': '伯斯', 'AKL': '奧克蘭', 'ADL': '阿得雷德', 'CBR': '坎培拉',
-    'SCL': '聖地亞哥', 'GRU': '聖保羅', 'EZE': '布宜諾斯艾利斯', 'BOG': '波哥大', 'LIM': '利馬', 'GIG': '里約熱內盧', 'QRO': '克雷塔羅',
-    'DXB': '杜拜', 'TLV': '特拉維夫', 'DOH': '杜哈', 'JNB': '約翰尼斯堡', 'CPT': '開普敦', 'BOM': '孟買', 'DEL': '德里', 'MAA': '清奈', 'HYD': '海得拉巴', 'KWI': '科威特', 'RUH': '利雅德', 'MCT': '馬斯喀特'
-};
-
-````
-
-## File: src/index.js
-````js
-// src/index.js
-import { serveHTML } from './html.js';
-import { handleCORS, jsonResponse } from './utils.js';
-import { verifyAdmin, handleAdminLogin, handleAdminLogout, handleAdminStatus, handleAdminToken } from './auth.js';
-import { updateAllIPs, autoSpeedTestAndStore, handleSpeedTest, handleUploadResults, handleGetFastIPsText, handleGetBrowserIPsText, handleGetFastIPs, handleGetIPs, handleRawIPs, handleItdogData, handleUserIP } from './ip.js';
-import { AUTO_TEST_MAX_IPS } from './config.js';
-
-export default {
-    async scheduled(event, env, ctx) {
-      ctx.waitUntil(handleScheduled(env));
-    },
-  
-    async fetch(request, env, ctx) {
-      const url = new URL(request.url);
-      const path = url.pathname;
-      const hostname = url.hostname.toLowerCase();
-      
-      if (!env.IP_STORAGE) return new Response('錯誤：KV 未綁定', {status: 500});
-      if (request.method === 'OPTIONS') return handleCORS();
-
-      try {
-        if (hostname.startsWith('fast.') || hostname.startsWith('fast-')) return await handleGetFastIPsText(env, request);
-        if (hostname.startsWith('browser.') || hostname.startsWith('web.')) return await handleGetBrowserIPsText(env, request);
-        if (hostname.startsWith('all.') || hostname.startsWith('ips.') || hostname.startsWith('raw.')) return await handleGetIPs(env, request);
-
-        switch (path) {
-          case '/': return await serveHTML(env, request);
-          case '/update': if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405); return await handleUpdate(env, request); 
-          case '/upload-results': if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405); return await handleUploadResults(env, request);
-          case '/ips': return await handleGetIPs(env, request);
-          case '/ip.txt': return await handleGetIPs(env, request);
-          case '/raw': return await handleRawIPs(env, request);
-          case '/fast-ips': return await handleGetFastIPs(env, request);
-          case '/fast-ips.txt': return await handleGetFastIPsText(env, request);
-          case '/browser-ips.txt': return await handleGetBrowserIPsText(env, request);
-          case '/speedtest': return await handleSpeedTest(request, env);
-          case '/itdog-data': return await handleItdogData(env, request);
-          case '/my-ip': return handleUserIP(request);
-          case '/admin-login': return await handleAdminLogin(request, env);
-          case '/admin-status': return await handleAdminStatus(env);
-          case '/admin-logout': return await handleAdminLogout(env);
-          case '/admin-token': return await handleAdminToken(request, env);
-          default: return jsonResponse({ error: 'Endpoint not found' }, 404);
-        }
-      } catch (error) {
-        return jsonResponse({ error: error.message }, 500);
-      }
-    }
-};
-
-async function handleScheduled(env) {
-    const { uniqueIPs, results } = await updateAllIPs(env);
-    await env.IP_STORAGE.put('cloudflare_ips', JSON.stringify({ ips: uniqueIPs, lastUpdated: new Date().toISOString(), count: uniqueIPs.length, sources: results }));
-    await autoSpeedTestAndStore(env, uniqueIPs, AUTO_TEST_MAX_IPS);
-}
-
-async function handleUpdate(env, request) {
-    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
-    const start = Date.now();
-    const { uniqueIPs, results } = await updateAllIPs(env);
-    await env.IP_STORAGE.put('cloudflare_ips', JSON.stringify({
-      ips: uniqueIPs, lastUpdated: new Date().toISOString(), count: uniqueIPs.length, sources: results
-    }));
-    // 修改：回傳資料中一併帶上 results 統計名單
-    return jsonResponse({ 
-      success: true, 
-      duration: (Date.now()-start)+'ms', 
-      totalIPs: uniqueIPs.length,
-      results: results 
-    });
-}
-
-````
-
-## File: src/auth.js
-````js
-// src/auth.js
-import { jsonResponse } from './utils.js';
-
-export function generateToken() { 
-    let r = ''; 
-    const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; 
-    for(let i=0; i<32; i++) r += c.charAt(Math.floor(Math.random() * c.length)); 
-    return r; 
-}
-
-export async function getTokenConfig(env) { 
-    try { 
-        return JSON.parse(await env.IP_STORAGE.get('token_config')); 
-    } catch { 
-        return null; 
-    } 
-}
-
-export async function verifyAdmin(request, env) {
-    if (!env.ADMIN_PASSWORD) return true;
-    try {
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader && authHeader.startsWith('Bearer ')) { 
-            if (await env.IP_STORAGE.get(`session_${authHeader.slice(7)}`)) return true; 
-        }
-        const url = new URL(request.url);
-        if (url.searchParams.get('session') && await env.IP_STORAGE.get(`session_${url.searchParams.get('session')}`)) return true;
-        
-        const tc = await getTokenConfig(env);
-        if (tc) {
-            if (!tc.neverExpire && new Date(tc.expires) < new Date()) return false;
-            const t = url.searchParams.get('token') || (authHeader && authHeader.startsWith('Token ') ? authHeader.slice(6) : null);
-            if (t === tc.token) { 
-                tc.lastUsed = new Date().toISOString(); 
-                await env.IP_STORAGE.put('token_config', JSON.stringify(tc)); 
-                return true; 
-            }
-        }
-        return false;
-    } catch { 
-        return false; 
-    }
-}
-
-export async function handleAdminLogin(request, env) {
-    if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
-    try {
-        const { password } = await request.json();
-        if (!env.ADMIN_PASSWORD) return jsonResponse({ success: false, error: '未設置 ADMIN_PASSWORD' }, 400);
-        if (password === env.ADMIN_PASSWORD) {
-            let tokenConfig = await getTokenConfig(env);
-            if (!tokenConfig) {
-                tokenConfig = { token: generateToken(), expires: new Date(Date.now() + 30*24*60*60*1000).toISOString(), createdAt: new Date().toISOString(), lastUsed: null };
-                await env.IP_STORAGE.put('token_config', JSON.stringify(tokenConfig));
-            }
-            const sessionId = generateToken();
-            await env.IP_STORAGE.put(`session_${sessionId}`, JSON.stringify({ loggedIn: true, createdAt: new Date().toISOString() }), { expirationTtl: 86400 });
-            return jsonResponse({ success: true, sessionId, tokenConfig, message: '登入成功' });
-        } else return jsonResponse({ success: false, error: '密碼錯誤' }, 401);
-    } catch (e) { return jsonResponse({ error: e.message }, 500); }
-}
-
-export async function handleAdminToken(request, env) {
-    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
-    if (request.method === 'GET') return jsonResponse({ tokenConfig: await getTokenConfig(env) });
-    if (request.method === 'POST') {
-        const { token, expiresDays, neverExpire } = await request.json();
-        let newToken = token ? token.trim() : generateToken();
-        let expiresDate = neverExpire ? new Date(Date.now() + 100*365*24*60*60*1000).toISOString() : new Date(Date.now() + expiresDays*24*60*60*1000).toISOString();
-        const config = { token: newToken, expires: expiresDate, createdAt: new Date().toISOString(), lastUsed: null, neverExpire: neverExpire||false };
-        await env.IP_STORAGE.put('token_config', JSON.stringify(config));
-        return jsonResponse({ success: true, tokenConfig: config, message: 'Token更新成功' });
-    }
-    return jsonResponse({ error: 'Method not allowed' }, 405);
-}
-
-export async function handleAdminStatus(env) { 
-    return jsonResponse({ hasAdminPassword: !!env.ADMIN_PASSWORD, hasToken: !!await getTokenConfig(env), tokenConfig: await getTokenConfig(env) }); 
-}
-
-export async function handleAdminLogout(env) { 
-    return jsonResponse({ success: true }); 
-}
+為了安全性，**請不要將您的管理密碼明文寫入 GitHub 代碼中**：
+1. 進入 Cloudflare Dashboard 的 Worker 專案頁面。
+2. 點選 **「Settings」（設定）** -> **「Variables」（變數）**。
+3. 在 **「Environment Variables」（環境變數）** 點選 **「Add variable」**：
+   * **Name**：`ADMIN_PASSWORD`
+   * **Value**：您的自訂管理員密碼
+   * **類型**：請務必點選 **「Encrypt」**（加密成密鑰，隱藏明文顯示） [3]。
+4. 點選右下角 **「Save and deploy」**（儲存並部署） [3]。
 
 ````
 
@@ -495,6 +337,28 @@ export async function serveHTML(env, request) {
         .admin-badge.logged-out { background: #ef4444; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15); }
         .progress-bar { height: 4px; background: var(--border); border-radius: 9999px; overflow: hidden; margin: 16px 0 12px 0; display: none; }
         .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
+
+        /* 手機與行動裝置深度適配 (Mobile Responsive) */
+        @media (max-width: 768px) {
+            body { padding: 16px 12px; }
+            .header { flex-direction: column; align-items: flex-start; gap: 12px; padding-bottom: 16px; margin-bottom: 20px; }
+            .header div:last-child { width: 100%; }
+            .social-link { display: block; text-align: center; width: 100%; }
+            .card { padding: 20px 16px; margin-bottom: 16px; }
+            .stats { grid-template-columns: 1fr; gap: 12px; }
+            .stat { padding: 16px; }
+            .button-group { gap: 8px; }
+            .button { width: 100%; justify-content: center; }
+            .dropdown { width: 100%; display: block; }
+            .dropdown-content { width: 100%; position: absolute; z-index: 10; }
+            .ip-table-header { grid-template-columns: 75px 1fr 65px 50px; padding: 8px 12px; font-size: 0.7rem; }
+            .ip-item { grid-template-columns: 75px 1fr 65px 50px; padding: 10px 12px; }
+            .ip-address { font-size: 0.8rem; }
+            .colo-badge { min-width: 65px; font-size: 0.65rem; padding: 2px 6px; }
+            .speed-result { min-width: 55px; font-size: 0.675rem; padding: 2px 6px; }
+            .small-btn { padding: 4px 8px; font-size: 0.7rem; }
+            .log-box { padding: 12px; height: 160px; }
+        }
 
         /* 自然優美的暗黑黑曜石模式 (Adaptive Dark Mode) */
         @media (prefers-color-scheme: dark) {
@@ -894,6 +758,271 @@ export async function serveHTML(env, request) {
 
 ````
 
+## File: src/utils.js
+````js
+// src/utils.js
+
+export function ipToNum(ip) { 
+    return ip.split('.').reduce((a, b) => a * 256 + parseInt(b), 0); 
+}
+
+export function numToIp(n) { 
+    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'); 
+}
+
+export function isValidIPv4(ip) { 
+    return /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ip); 
+}
+
+export function jsonResponse(data, status = 200) { 
+    return new Response(JSON.stringify(data), { 
+        status, 
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } 
+    }); 
+}
+
+export function handleCORS() { 
+    return new Response(null, { 
+        headers: { 
+            'Access-Control-Allow-Origin': '*', 
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization' 
+        } 
+    }); 
+}
+
+// 新增：檢查某個 IP 是否落在特定的 CIDR 網段內
+export function isIpInCidr(ip, cidr) {
+    try {
+        const [cidrIp, maskStr] = cidr.split('/');
+        const maskBits = parseInt(maskStr || '32');
+        const start = ipToNum(cidrIp);
+        const totalIPs = Math.pow(2, 32 - maskBits);
+        const end = start + totalIPs - 1;
+        const num = ipToNum(ip);
+        return num >= start && num <= end;
+    } catch {
+        return false;
+    }
+}
+
+// 新增：檢查 IP 是否屬於 Cloudflare 官方 IP 集
+export function isCloudflareIP(ip, cfCidrs) {
+    return cfCidrs.some(cidr => isIpInCidr(ip, cidr));
+}
+
+````
+
+## File: src/index.js
+````js
+// src/index.js
+import { serveHTML } from './html.js';
+import { handleCORS, jsonResponse } from './utils.js';
+import { verifyAdmin, handleAdminLogin, handleAdminLogout, handleAdminStatus, handleAdminToken } from './auth.js';
+import { updateAllIPs, autoSpeedTestAndStore, handleSpeedTest, handleUploadResults, handleGetFastIPsText, handleGetBrowserIPsText, handleGetFastIPs, handleGetIPs, handleRawIPs, handleItdogData, handleUserIP } from './ip.js';
+import { AUTO_TEST_MAX_IPS } from './config.js';
+
+export default {
+    async scheduled(event, env, ctx) {
+      ctx.waitUntil(handleScheduled(env));
+    },
+  
+    async fetch(request, env, ctx) {
+      const url = new URL(request.url);
+      const path = url.pathname;
+      const hostname = url.hostname.toLowerCase();
+      
+      if (!env.IP_STORAGE) return new Response('錯誤：KV 未綁定', {status: 500});
+      if (request.method === 'OPTIONS') return handleCORS();
+
+      try {
+        if (hostname.startsWith('fast.') || hostname.startsWith('fast-')) return await handleGetFastIPsText(env, request);
+        if (hostname.startsWith('browser.') || hostname.startsWith('web.')) return await handleGetBrowserIPsText(env, request);
+        if (hostname.startsWith('all.') || hostname.startsWith('ips.') || hostname.startsWith('raw.')) return await handleGetIPs(env, request);
+
+        switch (path) {
+          case '/': return await serveHTML(env, request);
+          case '/update': if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405); return await handleUpdate(env, request); 
+          case '/upload-results': if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405); return await handleUploadResults(env, request);
+          case '/ips': return await handleGetIPs(env, request);
+          case '/ip.txt': return await handleGetIPs(env, request);
+          case '/raw': return await handleRawIPs(env, request);
+          case '/fast-ips': return await handleGetFastIPs(env, request);
+          case '/fast-ips.txt': return await handleGetFastIPsText(env, request);
+          case '/browser-ips.txt': return await handleGetBrowserIPsText(env, request);
+          case '/speedtest': return await handleSpeedTest(request, env);
+          case '/itdog-data': return await handleItdogData(env, request);
+          case '/my-ip': return handleUserIP(request);
+          case '/admin-login': return await handleAdminLogin(request, env);
+          case '/admin-status': return await handleAdminStatus(env);
+          case '/admin-logout': return await handleAdminLogout(env);
+          case '/admin-token': return await handleAdminToken(request, env);
+          default: return jsonResponse({ error: 'Endpoint not found' }, 404);
+        }
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+};
+
+async function handleScheduled(env) {
+    const { uniqueIPs, results } = await updateAllIPs(env);
+    await env.IP_STORAGE.put('cloudflare_ips', JSON.stringify({ ips: uniqueIPs, lastUpdated: new Date().toISOString(), count: uniqueIPs.length, sources: results }));
+    await autoSpeedTestAndStore(env, uniqueIPs, AUTO_TEST_MAX_IPS);
+}
+
+async function handleUpdate(env, request) {
+    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
+    const start = Date.now();
+    const { uniqueIPs, results } = await updateAllIPs(env);
+    await env.IP_STORAGE.put('cloudflare_ips', JSON.stringify({
+      ips: uniqueIPs, lastUpdated: new Date().toISOString(), count: uniqueIPs.length, sources: results
+    }));
+    // 修改：回傳資料中一併帶上 results 統計名單
+    return jsonResponse({ 
+      success: true, 
+      duration: (Date.now()-start)+'ms', 
+      totalIPs: uniqueIPs.length,
+      results: results 
+    });
+}
+
+````
+
+## File: src/auth.js
+````js
+// src/auth.js
+import { jsonResponse } from './utils.js';
+
+export function generateToken() { 
+    let r = ''; 
+    const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; 
+    for(let i=0; i<32; i++) r += c.charAt(Math.floor(Math.random() * c.length)); 
+    return r; 
+}
+
+export async function getTokenConfig(env) { 
+    try { 
+        return JSON.parse(await env.IP_STORAGE.get('token_config')); 
+    } catch { 
+        return null; 
+    } 
+}
+
+export async function verifyAdmin(request, env) {
+    if (!env.ADMIN_PASSWORD) return true;
+    try {
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) { 
+            if (await env.IP_STORAGE.get(`session_${authHeader.slice(7)}`)) return true; 
+        }
+        const url = new URL(request.url);
+        if (url.searchParams.get('session') && await env.IP_STORAGE.get(`session_${url.searchParams.get('session')}`)) return true;
+        
+        const tc = await getTokenConfig(env);
+        if (tc) {
+            if (!tc.neverExpire && new Date(tc.expires) < new Date()) return false;
+            const t = url.searchParams.get('token') || (authHeader && authHeader.startsWith('Token ') ? authHeader.slice(6) : null);
+            if (t === tc.token) { 
+                tc.lastUsed = new Date().toISOString(); 
+                await env.IP_STORAGE.put('token_config', JSON.stringify(tc)); 
+                return true; 
+            }
+        }
+        return false;
+    } catch { 
+        return false; 
+    }
+}
+
+export async function handleAdminLogin(request, env) {
+    if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
+    try {
+        const { password } = await request.json();
+        if (!env.ADMIN_PASSWORD) return jsonResponse({ success: false, error: '未設置 ADMIN_PASSWORD' }, 400);
+        if (password === env.ADMIN_PASSWORD) {
+            let tokenConfig = await getTokenConfig(env);
+            if (!tokenConfig) {
+                tokenConfig = { token: generateToken(), expires: new Date(Date.now() + 30*24*60*60*1000).toISOString(), createdAt: new Date().toISOString(), lastUsed: null };
+                await env.IP_STORAGE.put('token_config', JSON.stringify(tokenConfig));
+            }
+            const sessionId = generateToken();
+            await env.IP_STORAGE.put(`session_${sessionId}`, JSON.stringify({ loggedIn: true, createdAt: new Date().toISOString() }), { expirationTtl: 86400 });
+            return jsonResponse({ success: true, sessionId, tokenConfig, message: '登入成功' });
+        } else return jsonResponse({ success: false, error: '密碼錯誤' }, 401);
+    } catch (e) { return jsonResponse({ error: e.message }, 500); }
+}
+
+export async function handleAdminToken(request, env) {
+    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
+    if (request.method === 'GET') return jsonResponse({ tokenConfig: await getTokenConfig(env) });
+    if (request.method === 'POST') {
+        const { token, expiresDays, neverExpire } = await request.json();
+        let newToken = token ? token.trim() : generateToken();
+        let expiresDate = neverExpire ? new Date(Date.now() + 100*365*24*60*60*1000).toISOString() : new Date(Date.now() + expiresDays*24*60*60*1000).toISOString();
+        const config = { token: newToken, expires: expiresDate, createdAt: new Date().toISOString(), lastUsed: null, neverExpire: neverExpire||false };
+        await env.IP_STORAGE.put('token_config', JSON.stringify(config));
+        return jsonResponse({ success: true, tokenConfig: config, message: 'Token更新成功' });
+    }
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+}
+
+export async function handleAdminStatus(env) { 
+    return jsonResponse({ hasAdminPassword: !!env.ADMIN_PASSWORD, hasToken: !!await getTokenConfig(env), tokenConfig: await getTokenConfig(env) }); 
+}
+
+export async function handleAdminLogout(env) { 
+    return jsonResponse({ success: true }); 
+}
+
+````
+
+## File: src/config.js
+````js
+// src/config.js
+
+export const VERSION = "V4.1.0";             // 系統版本號
+export const FAST_IP_COUNT = 20;             // 優質 IP 數量
+export const AUTO_TEST_MAX_IPS = 45;        // 定時任務測速最大數量 (安全限制在 45 以內)
+export const SAFE_SUBREQUEST_LIMIT = 45;    // 子請求安全硬上限，防止免費方案部署時發生異常
+export const BROWSER_TEST_MAX_IPS = 1000;    // 新增：瀏覽器測速的最大數量 (可設定 500 甚至更高)
+
+// IP 來源網址列表 (亞洲優化庫)
+export const CIDR_SOURCE_URLS = [
+    'https://bestcf.pages.dev/uouin/all.txt',
+    'https://bestcf.pages.dev/wetest/ipv4.txt',
+    'https://bestcf.pages.dev/moistr/all.txt',
+    'https://bestcf.pages.dev/gslege/Cfxyz.txt',
+    'https://bestcf.pages.dev/gslege/SG.txt',
+    'https://bestcf.pages.dev/gslege/US.txt',
+    'https://bestcf.pages.dev/gslege/JP.txt',
+    'https://bestcf.pages.dev/cfyes/ipv4.txt',
+    'https://bestcf.pages.dev/nirevil/ipv4.txt',
+    'https://raw.githubusercontent.com/ymyuuu/IPDB/refs/heads/main/BestCF/bestcfv4.txt',
+    'https://bestcf.pages.dev/zhixuanwang/ipv4-onlyip.txt',
+    'https://raw.githubusercontent.com/joname1/BestCFip/refs/heads/main/ipv4.txt',
+    'https://raw.githubusercontent.com/Senflare/Senflare-IP/refs/heads/main/IPlist-Pro.txt',
+    'https://bestcf.pages.dev/vvhan/ipv4.txt',
+    'https://bestcf.pages.dev/ircf/ipv4.txt',
+    'https://raw.githubusercontent.com/gshtwy/CF-DNS-Clone/refs/heads/main/wetest-cloudflare-v4.txt',
+    'https://090227.pages.dev/bestcf?isp=all&ips=20',
+    'https://090227.pages.dev/bestcf?isp=ct&ips=50',
+];
+
+// 全球機房代碼對照表
+export const COLO_MAP = {
+    'HKG': '香港', 'TPE': '台北', 'NRT': '東京', 'KIX': '大阪', 'ICN': '首爾', 'FUK': '福岡', 'OKA': '沖繩', 'CTS': '札幌', 'KHH': '高雄',
+    'SIN': '新加坡', 'KUL': '吉隆坡', 'BKK': '曼谷', 'MNL': '馬尼拉', 'SGN': '胡志明市', 'HAN': '河內', 'CGK': '雅加達', 'KNO': '棉蘭', 'DPS': '峇里島', 'PNH': '金邊', 'RGN': '仰光', 'VTE': '永珍',
+    'LAX': '洛杉磯', 'SJC': '聖荷西', 'SFO': '舊金山', 'SEA': '西雅圖', 'PDX': '波特蘭', 'YVR': '溫哥華', 'SAN': '聖地牙哥', 'PHX': '鳳凰城', 'LAS': '拉斯維加斯', 'SMF': '沙加緬度', 'SLC': '鹽湖城',
+    'JFK': '紐約', 'EWR': '紐華克', 'ORD': '芝加哥', 'IAD': '華盛頓', 'MIA': '邁阿密', 'DFW': '達拉斯', 'IAH': '休士頓', 'ATL': '亞特蘭大', 'YYZ': '多倫多', 'YUL': '蒙特婁', 'DEN': '丹佛', 'BOS': '波士頓', 'PHL': '費城', 'DTW': '底特律', 'MSP': '明尼阿波利斯',
+    'LHR': '倫敦', 'AMS': '阿姆斯特丹', 'FRA': '法蘭克福', 'CDG': '巴黎', 'MAD': '馬德里', 'ZRH': '蘇黎世', 'MXP': '米蘭', 'VIE': '維也納', 'ARN': '斯德哥爾摩', 'OSL': '奧斯陸', 'CPH': '哥本哈根', 'HEL': '赫爾辛基', 'WAW': '華沙', 'PRG': '布拉格', 'BUD': '布達佩斯', 'OTP': '布加勒斯特', 'ATH': '雅典', 'IST': '伊斯坦堡', 'DUB': '都裂林', 'BRU': '布魯塞爾', 'MUC': '慕尼黑', 'TXL': '柏林', 'LIS': '里斯本', 'FCO': '羅馬', 'BCN': '巴塞隆納',
+    'SYD': '雪梨', 'MEL': '墨爾本', 'BNE': '布里斯本', 'PER': '伯斯', 'AKL': '奧克蘭', 'ADL': '阿得雷德', 'CBR': '坎培拉',
+    'SCL': '聖地亞哥', 'GRU': '聖保羅', 'EZE': '布宜諾斯艾利斯', 'BOG': '波哥大', 'LIM': '利馬', 'GIG': '里約熱內盧', 'QRO': '克雷塔羅',
+    'DXB': '杜拜', 'TLV': '特拉維夫', 'DOH': '杜哈', 'JNB': '約翰尼斯堡', 'CPT': '開普敦', 'BOM': '孟買', 'DEL': '德里', 'MAA': '清奈', 'HYD': '海得拉巴', 'KWI': '科威特', 'RUH': '利雅德', 'MCT': '馬斯喀特'
+};
+
+````
+
 ## File: src/ip.js
 ````js
 // src/ip.js
@@ -1117,61 +1246,6 @@ async function fetchURLWithTimeout(url) {
 
 ````
 
-## File: src/utils.js
-````js
-// src/utils.js
-
-export function ipToNum(ip) { 
-    return ip.split('.').reduce((a, b) => a * 256 + parseInt(b), 0); 
-}
-
-export function numToIp(n) { 
-    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'); 
-}
-
-export function isValidIPv4(ip) { 
-    return /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ip); 
-}
-
-export function jsonResponse(data, status = 200) { 
-    return new Response(JSON.stringify(data), { 
-        status, 
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } 
-    }); 
-}
-
-export function handleCORS() { 
-    return new Response(null, { 
-        headers: { 
-            'Access-Control-Allow-Origin': '*', 
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization' 
-        } 
-    }); 
-}
-
-// 新增：檢查某個 IP 是否落在特定的 CIDR 網段內
-export function isIpInCidr(ip, cidr) {
-    try {
-        const [cidrIp, maskStr] = cidr.split('/');
-        const maskBits = parseInt(maskStr || '32');
-        const start = ipToNum(cidrIp);
-        const totalIPs = Math.pow(2, 32 - maskBits);
-        const end = start + totalIPs - 1;
-        const num = ipToNum(ip);
-        return num >= start && num <= end;
-    } catch {
-        return false;
-    }
-}
-
-// 新增：檢查 IP 是否屬於 Cloudflare 官方 IP 集
-export function isCloudflareIP(ip, cfCidrs) {
-    return cfCidrs.some(cidr => isIpInCidr(ip, cidr));
-}
-
-````
-
 ## File: wrangler.toml
 ````toml
 name = "cf-worker-bestip"
@@ -1189,121 +1263,8 @@ crons = ["0 */6 * * *"]  # 每 6 小時整點自動執行一次 (非常安全且
 
 ````
 
-## File: README.md
-````md
-# Cloudflare 優選 IP 測速平台
-
-這是一個基於 Cloudflare Workers 運作的輕量化優選 IP 收集、測速與訂閱發佈平台。系統會定期從多個優良的第三方來源抓取 CIDR 網段，自動進行隨機抽樣、多執行緒測速、過濾，並保存最優質的節點 IP 提供下載。
-
-本專案採用**優雅的模組化架構**設計，並導入了**動態官方 IP 安全過濾防線**，確保所有匯出的 IP 皆 100% 屬於官方原生機房節點。
-
----
-
-## 🚀 一鍵部署 (One-Click Deploy)
-
-點選下方按鈕，即可直接將此專案發佈至您的 Cloudflare 帳戶中：
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sammy0101/cf-worker-bestip)
-
-> ⚠️ **一鍵部署後的重要提醒**：
-> 1. 部署完成後，請務必至 Cloudflare Workers 後台建立一個 **KV 命名空間**，命名為 `IP_STORAGE`，並綁定至您的 Worker。
-> 2. 請至 **「Settings」 (設定) -> 「Variables」 (變數)」** 設定您的加密管理員密碼 `ADMIN_PASSWORD` [3]。
-
----
-
-## 🌟 核心功能特色
-
-* 🛡️ **動態官方安全過濾（防範惡意 IP 注入）**：在 IP 導入第一關，系統會**動態從 Cloudflare 官方 API** (`https://api.cloudflare.com/client/v4/ips`) 獲取最新的官方 IPv4 網段 [1]，自動剔除任何意外混入的第三方「反代 IP」或惡意代理節點。
-* 📊 **雙欄式黃金分割排版 (60/40 Split-Pane)**：比照 Vercel、Linear 等現代化 SaaS 產品，將版面重構為雙欄式設計：
-  * **左側主面板 (60%)**：主控面板、一體化開發者終端盒與端口資訊，構成全能「控制中心」。
-  * **右側側邊欄 (40%)**：專屬於優選 IP 列表，呈現工整嚴謹的專業監控級數據表。
-* 🖥️ **一體化高階終端盒（Terminal Console）**：日誌盒升級為帶有視窗控制點、Console 狀態與一鍵 Clear 的擬真終端介面。
-* 📏 **數據欄位網格對齊**：利用 CSS 的 `display: contents;` 對齊技術，使機房代碼、IP 位址、測速數值與複製按鈕呈現完美、無偏差的垂直對齊邊界。
-* ⚡ **獨立的前/後端測速上限**：
-  * **後台自動排程（每 6 小時一次）**：限制在 **45 個** 以內，完美貼合免費版單次 50 次子請求的硬限制 [2]。
-  * **前台瀏覽器手動測速**：允許發起 **1000 個** 以上的大範圍超深過濾，互不干擾、體驗流暢。
-* 🔌 **細節與交互優化**：
-  * **日誌記憶還原**：點選「立即更新庫」自動重整網頁後，各個來源詳細的「提取統計數據」依然會保存在畫面上，直到點選下一個指令為止。
-  * **選單防消失橋樑**：下拉選單內建「隱形滑鼠感知橋樑」，解決了因滑鼠慢速移動而導致下拉選單意外關閉的痛點。
-
----
-
-## 📂 專案模組檔案結構
-
-本專案推薦使用以下模組化目錄結構進行管理與自動部署：
-
-```text
-你的專案目錄/
-├── wrangler.toml           # 專案設定檔 (含每 6 小時定時排程配置)
-├── .github/
-│   └── workflows/
-│       └── deploy.yml      # GitHub Actions 自動部署腳本 (支援手動與自動觸發)
-└── src/
-    ├── config.js           # 靜態常數、亞洲優化源與機房代碼
-    ├── utils.js            # 基礎工具 (IP 轉換、JSON 回應、CORS 等)
-    ├── auth.js             # 權限驗證、Session 登入、Token 生成
-    ├── ip.js               # IP 解析、動態安全校驗、前/後端測速 API
-    ├── html.js             # 前端 HTML 介面與 CSS 樣式
-    └── index.js            # 路由調度與排程入口
-```
-
----
-
-## 🌐 自訂子網域 API 串接與設定教學
-
-本系統支援透過不同的**子網域首碼（Subdomain Prefixes）**直接獲取對應的純文字 API 數據。
-
-### ⚠️ 重要限制說明（為什麼預設的 `.workers.dev` 無法使用子網域？）
-Cloudflare 預設分配的 `xxx.workers.dev` 網域其 SSL 憑證僅支援單級子網域（`*.workers.dev`）。如果您嘗試存取 `fast.xxx.workers.dev`，會因為憑證不匹配與 DNS 無法解析而失敗。
-
-**若要使用子網域 API 功能，您必須綁定您自己的「自訂網域」（Custom Domain，例如 `yourdomain.com`）：**
-
-1. 登入 Cloudflare 後台，點選您的 Worker 專案（`cf-worker-bestip`）。
-2. 切換到 **「Settings」（設定）** -> **「Triggers」（觸發器）** 索引標籤。
-3. 找到 **「Custom Domains」（自訂網域）**，點選 **「Add Custom Domain」** 新增：
-   - `fast.yourdomain.com` (後端優選)
-   - `browser.yourdomain.com` (本機測速)
-   - `all.yourdomain.com` (完整 IP 庫)
-
-### 📊 子網域 API 連結對照表
-
-在主控台點選 **「🔌 複製 API 連結 ▼」**，系統會自動在最前方替換或補上對應的子網域，並直接附帶 `https://` 協定：
-
-| 複製按鈕 | 自動生成之子網域 API | 獲取數據內容 |
-| :--- | :--- | :--- |
-| **複製後端優選 IP API** | `https://fast.yourdomain.com` | 🚀 **後端自動優選 IP** (每 6 小時自動更新) |
-| **複製本機測速結果 API** | `https://browser.yourdomain.com` | ⚡ **瀏覽器本機測速結果** (由前端測速後上傳的數據) |
-| **複製完整 IP 庫 API** | `https://all.yourdomain.com` | 📦 **完整備用 IP 庫** (經過安全性校驗的所有官方 IP) |
-
----
-
-## 🛠️ GitHub Actions 自動部署指南
-
-Wrangler（Cloudflare 官方編譯工具）會自動順著 `src/index.js` 的 `import` 宣告將所有拆分的檔案打包壓縮，您不需要手動進行繁瑣的編譯。
-
-### 步驟 1：配置本地 `wrangler.toml`
-
-請在專案根目錄下建立 `wrangler.toml`，並設定 **每 6 小時定時任務**：
-
-```toml
-name = "cf-worker-bestip"
-main = "src/index.js"
-compatibility_date = "2024-03-01"
-
-# KV 命名空間綁定
-[[kv_namespaces]]
-binding = "IP_STORAGE"
-id = "KV_ID_PLACEHOLDER"
-
-# ----------------- 每 6 小時定時觸發活動設定 -----------------
-[triggers]
-crons = ["0 */6 * * *"]
-```
-
-### 步驟 2：配置 GitHub Actions 工作流
-在 `.github/workflows/deploy.yml` 建立以下部署腳本：
-
-```yaml
+## File: .github/workflows/deploy.yml
+````yml
 name: Deploy Worker
 
 on:
@@ -1330,26 +1291,87 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-```
 
-### 步驟 3：在 GitHub 設定 Secrets
-前往您 GitHub 專案的 **Settings -> Secrets and variables -> Actions**，新增以下 Secrets：
-1. `CLOUDFLARE_API_TOKEN`：您的 Cloudflare 編輯權限 API Token。
-2. `CLOUDFLARE_ACCOUNT_ID`：您的 Cloudflare 帳戶 ID。
-3. `CF_KV_ID`：您建立的 KV 命名空間 ID。
+````
 
----
+## File: .github/workflows/combine-code.yml
+````yml
+name: Generate All Codebase to MD
 
-## 🔒 敏感資料安全指引
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'combined_project_code.md' # 避免此檔案自身更新引發無限循環
+  workflow_dispatch: # 支援在 GitHub 網頁上手動觸發執行
 
-為了安全性，**請不要將您的管理密碼明文寫入 GitHub 代碼中**：
-1. 進入 Cloudflare Dashboard 的 Worker 專案頁面。
-2. 點選 **「Settings」（設定）** -> **「Variables」（變數）**。
-3. 在 **「Environment Variables」（環境變數）** 點選 **「Add variable」**：
-   * **Name**：`ADMIN_PASSWORD`
-   * **Value**：您的自訂管理員密碼
-   * **類型**：請務必點選 **「Encrypt」**（加密成密鑰，隱藏明文顯示） [3]。
-4. 點選右下角 **「Save and deploy」**（儲存並部署） [3]。
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Combine All Files into MD
+        run: |
+          OUT_FILE="combined_project_code.md"
+          echo "# Complete Project Codebase" > "$OUT_FILE"
+          echo "Generated on: $(date)" >> "$OUT_FILE"
+          echo "" >> "$OUT_FILE"
+
+          # 遍歷專案內的所有檔案，排除依賴、Git 歷史、打包產物及二進位檔案
+          find . -type f \
+            -not -path "*/node_modules/*" \
+            -not -path "*/.git/*" \
+            -not -path "*/dist/*" \
+            -not -name "package-lock.json" \
+            -not -name "yarn.lock" \
+            -not -name "pnpm-lock.yaml" \
+            -not -name "$OUT_FILE" \
+            -not -name "*.png" \
+            -not -name "*.jpg" \
+            -not -name "*.jpeg" \
+            -not -name "*.gif" \
+            -not -name "*.ico" \
+            -not -name "*.woff*" \
+            -not -name "*.ttf" | while read -r file; do
+              
+              # 取得相對路徑與副檔名
+              rel_path="${file#./}"
+              ext="${file##*.}"
+              
+              # 如果無副檔名，清除變數避免格式混亂
+              if [ "$ext" = "$rel_path" ]; then
+                ext=""
+              fi
+              
+              # 寫入檔案標題
+              echo "## File: $rel_path" >> "$OUT_FILE"
+              # 使用四個反單引號（````）包裹，防止內部程式碼的三個反單引號造成排版衝突
+              echo "\`\`\`\`$ext" >> "$OUT_FILE"
+              cat "$file" >> "$OUT_FILE"
+              echo "" >> "$OUT_FILE"
+              echo "\`\`\`\`" >> "$OUT_FILE"
+              echo "" >> "$OUT_FILE"
+          done
+
+      - name: Commit and Push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add combined_project_code.md
+          
+          if git diff --staged --quiet; then
+            echo "No changes in codebase."
+          else
+            git commit -m "docs: auto-generate complete codebase [skip ci]"
+            git push origin main
+          fi
 
 ````
 
