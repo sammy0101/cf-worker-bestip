@@ -169,6 +169,28 @@ export async function serveHTML(env, request) {
         .progress-bar { height: 4px; background: var(--border); border-radius: 9999px; overflow: hidden; margin: 16px 0 12px 0; display: none; }
         .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
 
+        /* 手機與行動裝置深度適配 (Mobile Responsive) */
+        @media (max-width: 768px) {
+            body { padding: 16px 12px; }
+            .header { flex-direction: column; align-items: flex-start; gap: 12px; padding-bottom: 16px; margin-bottom: 20px; }
+            .header div:last-child { width: 100%; }
+            .social-link { display: block; text-align: center; width: 100%; }
+            .card { padding: 20px 16px; margin-bottom: 16px; }
+            .stats { grid-template-columns: 1fr; gap: 12px; }
+            .stat { padding: 16px; }
+            .button-group { gap: 8px; }
+            .button { width: 100%; justify-content: center; }
+            .dropdown { width: 100%; display: block; }
+            .dropdown-content { width: 100%; position: absolute; z-index: 10; }
+            .ip-table-header { grid-template-columns: 75px 1fr 65px 50px; padding: 8px 12px; font-size: 0.7rem; }
+            .ip-item { grid-template-columns: 75px 1fr 65px 50px; padding: 10px 12px; }
+            .ip-address { font-size: 0.8rem; }
+            .colo-badge { min-width: 65px; font-size: 0.65rem; padding: 2px 6px; }
+            .speed-result { min-width: 55px; font-size: 0.675rem; padding: 2px 6px; }
+            .small-btn { padding: 4px 8px; font-size: 0.7rem; }
+            .log-box { padding: 12px; height: 160px; }
+        }
+
         /* 自然優美的暗黑黑曜石模式 (Adaptive Dark Mode) */
         @media (prefers-color-scheme: dark) {
             :root {
