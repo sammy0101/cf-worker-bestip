@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Fri Jun 12 12:44:12 UTC 2026
+Generated on: Fri Jun 12 12:47:01 UTC 2026
 
 ## File: README.md
 ````md
@@ -260,17 +260,17 @@ export async function serveHTML(env, request) {
         .tag-http { background: #fef2f2; color: #991b1b; border-color: #fee2e2; } 
         .tag-https { background: #f0f9ff; color: #075985; border-color: #e0f2fe; }
 
-        /* 表格化優選列表設計 - 修改：將第一欄機房欄位拓寬至 110px 容納中文 */
-        .ip-table-header { display: grid; grid-template-columns: 110px 1fr 70px 60px; padding: 10px 20px; font-size: 0.725rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--border); border-bottom: none; background: var(--bg-inner); border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
+        /* 表格化優選列表設計 - 修改：將第一欄機房網格寬度安全拓寬至 130px，預留極致容錯空間 */
+        .ip-table-header { display: grid; grid-template-columns: 130px 1fr 70px 60px; padding: 10px 20px; font-size: 0.725rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--border); border-bottom: none; background: var(--bg-inner); border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
         .ip-list { border: 1px solid var(--border); border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); overflow: hidden; }
-        .ip-item { display: grid; grid-template-columns: 110px 1fr 70px 60px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s ease; }
+        .ip-item { display: grid; grid-template-columns: 130px 1fr 70px 60px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s ease; }
         .ip-item:hover { background: var(--bg-inner); }
         .ip-item:last-child { border-bottom: none; }
         
         /* 利用 display: contents 讓子節點完全融入 Grid 中對齊 */
         .ip-info { display: contents; }
         
-        /* 修改：移除了硬編碼的 max-width，並加入 width: 100% 與自動省略號 (ellipsis) 確保不重疊 */
+        /* 修改：移除限制，加入 width: 100% 自適應、自動隱藏溢出（overflow）與優雅省略號（ellipsis）避免重疊 */
         .colo-badge { font-size: 0.725rem; padding: 3px 6px; border-radius: 6px; background: var(--bg-inner); color: var(--text-sub); font-weight: 700; text-align: center; white-space: nowrap; border: 1px solid var(--border); width: 100%; display: inline-block; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.02em; }
         .ip-address { font-family: monospace; font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
         .speed-result { font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; background: var(--bg-inner); max-width: 65px; text-align: center; font-weight: 700; border: 1px solid var(--border); color: var(--text-sub); }
@@ -340,7 +340,7 @@ export async function serveHTML(env, request) {
         .progress-bar { height: 4px; background: var(--border); border-radius: 9999px; overflow: hidden; margin: 16px 0 12px 0; display: none; }
         .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
 
-        /* 手機與行動裝置深度適配 (Mobile Responsive) - 修改：將手機端的機房欄位拓寬至 100px */
+        /* 手機與行動裝置深度適配 (Mobile Responsive) - 修改：將機房網格欄位拓寬至 115px */
         @media (max-width: 768px) {
             body { padding: 16px 12px; }
             .header { flex-direction: column; align-items: flex-start; gap: 12px; padding-bottom: 16px; margin-bottom: 20px; }
@@ -353,10 +353,9 @@ export async function serveHTML(env, request) {
             .button { width: 100%; justify-content: center; }
             .dropdown { width: 100%; display: block; }
             .dropdown-content { width: 100%; position: absolute; z-index: 10; }
-            .ip-table-header { grid-template-columns: 100px 1fr 65px 50px; padding: 8px 12px; font-size: 0.7rem; }
-            .ip-item { grid-template-columns: 100px 1fr 65px 50px; padding: 10px 12px; }
+            .ip-table-header { grid-template-columns: 115px 1fr 65px 50px; padding: 8px 12px; font-size: 0.7rem; }
+            .ip-item { grid-template-columns: 115px 1fr 65px 50px; padding: 10px 12px; }
             .ip-address { font-size: 0.8rem; }
-            /* 移除了手機端 colo-badge 硬性的 min-width */
             .colo-badge { font-size: 0.65rem; padding: 2px 4px; }
             .speed-result { min-width: 55px; font-size: 0.675rem; padding: 2px 6px; }
             .small-btn { padding: 4px 8px; font-size: 0.7rem; }
