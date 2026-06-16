@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Tue Jun 16 12:06:02 UTC 2026
+Generated on: Tue Jun 16 12:06:28 UTC 2026
 
 ## File: README.md
 ````md
@@ -821,7 +821,7 @@ export function isCloudflareIP(ip, cfCidrs) {
 import { serveHTML } from './html.js';
 import { handleCORS, jsonResponse } from './utils.js';
 import { verifyAdmin, handleAdminLogin, handleAdminLogout, handleAdminStatus, handleAdminToken } from './auth.js';
-import { updateAllIPs, autoSpeedTestAndStore, handleSpeedTest, handleUploadResults, handleGetFastIPsText, handleGetBrowserIPsText, handleGetFastIPs, handleGetIPs, handleRawIPs, handleItdogData, handleUserIP } from './ip.js';
+import { updateAllIPs, autoSpeedTestAndStore, handleSpeedTest, handleUploadResults, handleGetFastIPsText, handleGetBrowserIPsText, handleGetFastIPs, handleGetIPs, handleRawIPs, handleItdogData, handleUserIP, handleGetCidrSources, handleSaveCidrSources } from './ip.js';
 import { AUTO_TEST_MAX_IPS } from './config.js';
 
 export default {
@@ -859,6 +859,12 @@ export default {
           case '/admin-status': return await handleAdminStatus(env);
           case '/admin-logout': return await handleAdminLogout(env);
           case '/admin-token': return await handleAdminToken(request, env);
+          
+          // 新增：動態網址來源控制端點
+          case '/cidr-sources': 
+            if (request.method === 'POST') return await handleSaveCidrSources(env, request);
+            return await handleGetCidrSources(env);
+            
           default: return jsonResponse({ error: 'Endpoint not found' }, 404);
         }
       } catch (error) {
@@ -880,7 +886,6 @@ async function handleUpdate(env, request) {
     await env.IP_STORAGE.put('cloudflare_ips', JSON.stringify({
       ips: uniqueIPs, lastUpdated: new Date().toISOString(), count: uniqueIPs.length, sources: results
     }));
-    // 修改：回傳資料中一併帶上 results 統計名單
     return jsonResponse({ 
       success: true, 
       duration: (Date.now()-start)+'ms', 
