@@ -1,14 +1,26 @@
 // src/ip.js
-import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT } from './config.js';
+import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT, CLOUDFLARE_OFFICIAL_CIDRS } from './config.js';
 import { ipToNum, numToIp, isValidIPv4, jsonResponse, isCloudflareIP } from './utils.js';
 import { verifyAdmin } from './auth.js';
+
+// 新增：獲取動態來源（優先讀取 KV，若無則讀取 config.js 預設名單）
+export async function getCidrSources(env) {
+    try {
+        const stored = await env.IP_STORAGE.get('cidr_source_urls');
+        if (stored) {
+            return JSON.parse(stored);
+        }
+    } catch {}
+    return CIDR_SOURCE_URLS;
+}
 
 export async function getStoredIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_ips')) || {ips:[]}; } catch { return {ips:[]}; } }
 export async function getStoredSpeedIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
 export async function getStoredBrowserIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('browser_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
 
 export async function updateAllIPs(env) {
-    const urls = CIDR_SOURCE_URLS;
+    // 修改：動態獲取訂閱來源網址
+    const urls = await getCidrSources(env);
     const uniqueIPs = new Set();
     const results = [];
     const cidrRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?:\/(?:[0-9]{1,2}))?\b/gi;
@@ -206,6 +218,28 @@ export async function handleUserIP(request) {
         asn: cf ? cf.asn : '',
         colo: cf ? cf.colo : ''
     });
+}
+
+// 新增 API 處理：讀取目前網址
+export async function handleGetCidrSources(env) {
+    const urls = await getCidrSources(env);
+    return jsonResponse({ success: true, urls });
+}
+
+// 新增 API 處理：儲存修改後的網址
+export async function handleSaveCidrSources(env, request) {
+    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
+    try {
+        const { urls } = await request.json();
+        if (!urls || !Array.isArray(urls)) return jsonResponse({ error: '無效數據' }, 400);
+        
+        // 清理空行並確認是 HTTP/HTTPS
+        const cleanedUrls = urls.map(u => u.trim()).filter(u => u.startsWith('http'));
+        await env.IP_STORAGE.put('cidr_source_urls', JSON.stringify(cleanedUrls));
+        return jsonResponse({ success: true, urls: cleanedUrls });
+    } catch (e) {
+        return jsonResponse({ error: e.message }, 500);
+    }
 }
 
 async function fetchURLWithTimeout(url) { 
