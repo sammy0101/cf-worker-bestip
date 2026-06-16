@@ -1,5 +1,5 @@
 // src/html.js
-import { VERSION, FAST_IP_COUNT, AUTO_TEST_MAX_IPS, BROWSER_TEST_MAX_IPS, COLO_MAP } from './config.js';
+import { VERSION, FAST_IP_COUNT, AUTO_TEST_MAX_IPS, BROWSER_TEST_MAX_IPS, COLO_MAP, CIDR_SOURCE_URLS } from './config.js';
 import { verifyAdmin, getTokenConfig } from './auth.js';
 import { getStoredIPs, getStoredSpeedIPs } from './ip.js';
 
@@ -84,6 +84,9 @@ export async function serveHTML(env, request) {
         
         .button-purple { background: rgba(99, 102, 241, 0.08); color: #4f46e5; border: 1px solid rgba(99, 102, 241, 0.15); } 
         .button-purple:hover { background: rgba(99, 102, 241, 0.12); border-color: #4f46e5; }
+        
+        .button-slate { background: rgba(113, 113, 122, 0.08); color: #71717a; border: 1px solid rgba(113, 113, 122, 0.15); }
+        .button-slate:hover { background: rgba(113, 113, 122, 0.12); border-color: #71717a; }
 
         /* 支援端口資訊標籤 */
         .port-box { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -297,6 +300,9 @@ export async function serveHTML(env, request) {
                                 <a onclick="copyApiUrl('all')">📦 複製完整 IP 庫 API</a>
                             </div>
                         </div>
+                        
+                        <!-- 新增：來源網址管理按鈕 -->
+                        <button class="button button-slate" onclick="openSourcesModal()">⚙️ 來源管理</button>
                     </div>
                     
                     <!-- 擬真開發者終端盒 (Developer Terminal Console Container) -->
@@ -368,6 +374,22 @@ export async function serveHTML(env, request) {
 
     <!-- Modals -->
     <div class="modal" id="login-modal"><div class="modal-content"><h3>🔐 管理員登入</h3><input type="password" id="admin-pass" class="modal-input" placeholder="輸入密碼"><div style="text-align:right; margin-top: 10px;"><button class="button" onclick="loginModal()">登入</button></div></div></div>
+
+    <!-- 新增：自訂來源網址管理彈窗 -->
+    <div class="modal" id="sources-modal">
+        <div class="modal-content" style="max-width: 550px; width: 95%;">
+            <h3>⚙️ IP 來源網址管理</h3>
+            <p style="font-size:0.775rem; color:var(--text-sub); margin-bottom:12px;">請輸入您的訂閱網址 (每行輸入一個 URL，留空儲存將會還原為系統預設值)：</p>
+            <textarea id="sources-textarea" class="modal-input" style="height: 250px; font-family: monospace; font-size: 0.8rem; resize: vertical; line-height: 1.4;" placeholder="https://example.com/ips.txt"></textarea>
+            <div style="text-align:right; margin-top: 16px; display: flex; justify-content: space-between; align-items: center;">
+                <button class="small-btn" onclick="resetSourcesToDefault()" style="height: 36px; padding: 0 12px; font-size: 0.8rem; border-color: var(--border);">🔄 載入系統預設</button>
+                <div>
+                    <button class="small-btn" onclick="document.getElementById('sources-modal').style.display='none'" style="height: 36px; padding: 0 12px; font-size: 0.8rem; border-color: var(--border); margin-right: 8px;">取消</button>
+                    <button class="button" onclick="saveSources()" style="height: 36px; padding: 0 16px; font-size: 0.8rem;">儲存變更</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
         const COLO_MAP = ${JSON.stringify(COLO_MAP)};
@@ -581,6 +603,54 @@ export async function serveHTML(env, request) {
             let subdomainHost = parts.length >= 3 ? (parts[0] = type, parts.join('.')) : type + '.' + host;
             let url = 'https://' + subdomainHost;
             navigator.clipboard.writeText(url).then(() => alert('已複製: ' + url));
+        }
+
+        // 新增：打開來源網址管理彈窗
+        async function openSourcesModal() {
+            const modal = document.getElementById('sources-modal');
+            const textarea = document.getElementById('sources-textarea');
+            if (!modal || !textarea) return;
+            
+            textarea.value = '讀取中...';
+            modal.style.display = 'flex';
+            
+            try {
+                const res = await api('/cidr-sources');
+                if (res.success && res.urls) {
+                    textarea.value = res.urls.join('\\n');
+                } else {
+                    textarea.value = '讀取失敗: ' + (res.error || '未知錯誤');
+                }
+            } catch (e) {
+                textarea.value = '讀取發生錯誤: ' + e.message;
+            }
+        }
+
+        // 新增：儲存自訂來源網址
+        async function saveSources() {
+            const textarea = document.getElementById('sources-textarea');
+            if (!textarea) return;
+            
+            const urls = textarea.value.split('\\n').map(u => u.trim()).filter(u => u.length > 0);
+            try {
+                const res = await api('/cidr-sources', 'POST', { urls });
+                if (res.success) {
+                    alert('來源網址儲存成功！將在下次更新庫時生效。');
+                    document.getElementById('sources-modal').style.display = 'none';
+                } else {
+                    alert('儲存失敗: ' + res.error);
+                }
+            } catch (e) {
+                alert('儲存發生錯誤: ' + e.message);
+            }
+        }
+
+        // 新增：載入預設名單
+        function resetSourcesToDefault() {
+            if (confirm('確定要載入系統預設的訂閱來源嗎？儲存後將覆蓋您目前的自訂名單。')) {
+                const defaults = ${JSON.stringify(CIDR_SOURCE_URLS)};
+                document.getElementById('sources-textarea').value = defaults.join('\\n');
+            }
         }
     </script>
 </body>
