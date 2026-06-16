@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Tue Jun 16 12:09:47 UTC 2026
+Generated on: Tue Jun 16 12:15:23 UTC 2026
 
 ## File: README.md
 ````md
@@ -263,7 +263,7 @@ export async function serveHTML(env, request) {
         .tag-http { background: #fef2f2; color: #991b1b; border-color: #fee2e2; } 
         .tag-https { background: #f0f9ff; color: #075985; border-color: #e0f2fe; }
 
-        /* 表格化優選列表設計 - 修改：將第一欄機房網格寬度安全拓寬至 130px，預留極致容錯空間 */
+        /* 表格化優選列表設計 */
         .ip-table-header { display: grid; grid-template-columns: 130px 1fr 70px 60px; padding: 10px 20px; font-size: 0.725rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--border); border-bottom: none; background: var(--bg-inner); border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
         .ip-list { border: 1px solid var(--border); border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); overflow: hidden; }
         .ip-item { display: grid; grid-template-columns: 130px 1fr 70px 60px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s ease; }
@@ -273,7 +273,7 @@ export async function serveHTML(env, request) {
         /* 利用 display: contents 讓子節點完全融入 Grid 中對齊 */
         .ip-info { display: contents; }
         
-        /* 修改：移除限制，加入 width: 100% 自適應、自動隱藏溢出（overflow）與優雅省略號（ellipsis）避免重疊 */
+        /* 移除限制，加入 width: 100% 自適應、自動隱藏溢出與優雅省略號 */
         .colo-badge { font-size: 0.725rem; padding: 3px 6px; border-radius: 6px; background: var(--bg-inner); color: var(--text-sub); font-weight: 700; text-align: center; white-space: nowrap; border: 1px solid var(--border); width: 100%; display: inline-block; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.02em; }
         .ip-address { font-family: monospace; font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
         .speed-result { font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; background: var(--bg-inner); max-width: 65px; text-align: center; font-weight: 700; border: 1px solid var(--border); color: var(--text-sub); }
@@ -311,7 +311,7 @@ export async function serveHTML(env, request) {
         .dropdown-content a:first-child { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
         .dropdown-content a:last-child { border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); border-bottom: none; }
 
-        /* 終端視窗 (Terminal Shell Window Container) */
+        /* 終端視窗 */
         .terminal-window { margin-top: 24px; border-radius: var(--radius); border: 1px solid #27272a; overflow: hidden; background: #09090b; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         .terminal-header { background: #18181b; padding: 10px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #27272a; }
         .terminal-dots { display: flex; gap: 6px; }
@@ -343,7 +343,7 @@ export async function serveHTML(env, request) {
         .progress-bar { height: 4px; background: var(--border); border-radius: 9999px; overflow: hidden; margin: 16px 0 12px 0; display: none; }
         .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
 
-        /* 手機與行動裝置深度適配 (Mobile Responsive) - 修改：將機房網格欄位拓寬至 115px */
+        /* 手機與行動裝置深度適配 (Mobile Responsive) */
         @media (max-width: 768px) {
             body { padding: 16px 12px; }
             .header { flex-direction: column; align-items: flex-start; gap: 12px; padding-bottom: 16px; margin-bottom: 20px; }
@@ -448,20 +448,16 @@ export async function serveHTML(env, request) {
                         <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
                         <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 瀏覽器測速</button>
                         
-                        <div class="dropdown"><button class="button button-success">🚀 下載中心 ▼</button>
-                            <div class="dropdown-content">
-                                <a href="/fast-ips.txt" download="cloudflare_fast_ips.txt">🚀 下載後端優選 IP</a>
-                                <a onclick="downloadBrowserResults()">⚡ 下載本機測速結果</a>
-                                <a href="/ips" download="all_ips.txt">📦 下載完整 IP 庫</a>
-                            </div>
-                        </div>
+                        <!-- 整合後的：線上查看與數據匯出選單 -->
                         <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
                             <div class="dropdown-content">
                                 <a href="/fast-ips.txt" target="_blank">🚀 查看後端優選 IP</a>
                                 <a href="/browser-ips.txt" target="_blank">⚡ 查看本機測速結果</a>
                                 <a href="/ip.txt" target="_blank">📦 查看完整 IP 庫</a>
+                                <a onclick="downloadBrowserResults()">📥 匯出本機測速結果</a>
                             </div>
                         </div>
+                        
                         <div class="dropdown"><button class="button button-purple">🔌 複製 API 連結 ▼</button>
                             <div class="dropdown-content">
                                 <a onclick="copyApiUrl('fast')">🚀 複製後端優選 IP API</a>
@@ -470,7 +466,6 @@ export async function serveHTML(env, request) {
                             </div>
                         </div>
                         
-                        <!-- 新增：來源網址管理按鈕 -->
                         <button class="button button-slate" onclick="openSourcesModal()">⚙️ 來源管理</button>
                     </div>
                     
@@ -544,7 +539,7 @@ export async function serveHTML(env, request) {
     <!-- Modals -->
     <div class="modal" id="login-modal"><div class="modal-content"><h3>🔐 管理員登入</h3><input type="password" id="admin-pass" class="modal-input" placeholder="輸入密碼"><div style="text-align:right; margin-top: 10px;"><button class="button" onclick="loginModal()">登入</button></div></div></div>
 
-    <!-- 新增：自訂來源網址管理彈窗 -->
+    <!-- 自訂來源網址管理彈窗 -->
     <div class="modal" id="sources-modal">
         <div class="modal-content" style="max-width: 550px; width: 95%;">
             <h3>⚙️ IP 來源網址管理</h3>
@@ -772,54 +767,6 @@ export async function serveHTML(env, request) {
             let subdomainHost = parts.length >= 3 ? (parts[0] = type, parts.join('.')) : type + '.' + host;
             let url = 'https://' + subdomainHost;
             navigator.clipboard.writeText(url).then(() => alert('已複製: ' + url));
-        }
-
-        // 新增：打開來源網址管理彈窗
-        async function openSourcesModal() {
-            const modal = document.getElementById('sources-modal');
-            const textarea = document.getElementById('sources-textarea');
-            if (!modal || !textarea) return;
-            
-            textarea.value = '讀取中...';
-            modal.style.display = 'flex';
-            
-            try {
-                const res = await api('/cidr-sources');
-                if (res.success && res.urls) {
-                    textarea.value = res.urls.join('\\n');
-                } else {
-                    textarea.value = '讀取失敗: ' + (res.error || '未知錯誤');
-                }
-            } catch (e) {
-                textarea.value = '讀取發生錯誤: ' + e.message;
-            }
-        }
-
-        // 新增：儲存自訂來源網址
-        async function saveSources() {
-            const textarea = document.getElementById('sources-textarea');
-            if (!textarea) return;
-            
-            const urls = textarea.value.split('\\n').map(u => u.trim()).filter(u => u.length > 0);
-            try {
-                const res = await api('/cidr-sources', 'POST', { urls });
-                if (res.success) {
-                    alert('來源網址儲存成功！將在下次更新庫時生效。');
-                    document.getElementById('sources-modal').style.display = 'none';
-                } else {
-                    alert('儲存失敗: ' + res.error);
-                }
-            } catch (e) {
-                alert('儲存發生錯誤: ' + e.message);
-            }
-        }
-
-        // 新增：載入預設名單
-        function resetSourcesToDefault() {
-            if (confirm('確定要載入系統預設的訂閱來源嗎？儲存後將覆蓋您目前的自訂名單。')) {
-                const defaults = ${JSON.stringify(CIDR_SOURCE_URLS)};
-                document.getElementById('sources-textarea').value = defaults.join('\\n');
-            }
         }
     </script>
 </body>
