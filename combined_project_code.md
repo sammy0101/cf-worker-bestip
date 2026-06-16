@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Tue Jun 16 12:07:13 UTC 2026
+Generated on: Tue Jun 16 12:09:47 UTC 2026
 
 ## File: README.md
 ````md
@@ -1103,11 +1103,11 @@ export const COLO_MAP = {
 ## File: src/ip.js
 ````js
 // src/ip.js
-import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT, CLOUDFLARE_OFFICIAL_CIDRS } from './config.js';
+import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT } from './config.js';
 import { ipToNum, numToIp, isValidIPv4, jsonResponse, isCloudflareIP } from './utils.js';
 import { verifyAdmin } from './auth.js';
 
-// 新增：獲取動態來源（優先讀取 KV，若無則讀取 config.js 預設名單）
+// 獲取動態來源（優先讀取 KV，若無則讀取 config.js 預設名單）
 export async function getCidrSources(env) {
     try {
         const stored = await env.IP_STORAGE.get('cidr_source_urls');
@@ -1123,7 +1123,7 @@ export async function getStoredSpeedIPs(env) { try { return JSON.parse(await env
 export async function getStoredBrowserIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('browser_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
 
 export async function updateAllIPs(env) {
-    // 修改：動態獲取訂閱來源網址
+    // 動態獲取訂閱來源網址
     const urls = await getCidrSources(env);
     const uniqueIPs = new Set();
     const results = [];
@@ -1324,13 +1324,13 @@ export async function handleUserIP(request) {
     });
 }
 
-// 新增 API 處理：讀取目前網址
+// 獲取動態來源
 export async function handleGetCidrSources(env) {
     const urls = await getCidrSources(env);
     return jsonResponse({ success: true, urls });
 }
 
-// 新增 API 處理：儲存修改後的網址
+// 儲存修改後的網址
 export async function handleSaveCidrSources(env, request) {
     if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
     try {
