@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Tue Jun 16 15:35:12 UTC 2026
+Generated on: Tue Jun 16 15:41:39 UTC 2026
 
 ## File: README.md
 ````md
@@ -260,7 +260,7 @@ export async function serveHTML(env, request) {
         .tag-http { background: #fef2f2; color: #991b1b; border-color: #fee2e2; } 
         .tag-https { background: #f0f9ff; color: #075985; border-color: #e0f2fe; }
 
-        /* 表格化優選列表設計 - 修改：將第一欄機房網格寬度安全拓寬至 130px，預留極致容錯空間 */
+        /* 表格化優選列表設計 */
         .ip-table-header { display: grid; grid-template-columns: 130px 1fr 70px 60px; padding: 10px 20px; font-size: 0.725rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--border); border-bottom: none; background: var(--bg-inner); border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
         .ip-list { border: 1px solid var(--border); border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); overflow: hidden; }
         .ip-item { display: grid; grid-template-columns: 130px 1fr 70px 60px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s ease; }
@@ -270,7 +270,7 @@ export async function serveHTML(env, request) {
         /* 利用 display: contents 讓子節點完全融入 Grid 中對齊 */
         .ip-info { display: contents; }
         
-        /* 修改：移除限制，加入 width: 100% 自適應、自動隱藏溢出與優雅省略號 */
+        /* 移除限制，加入 width: 100% 自適應、自動隱藏溢出與優雅省略號 */
         .colo-badge { font-size: 0.725rem; padding: 3px 6px; border-radius: 6px; background: var(--bg-inner); color: var(--text-sub); font-weight: 700; text-align: center; white-space: nowrap; border: 1px solid var(--border); width: 100%; display: inline-block; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.02em; }
         .ip-address { font-family: monospace; font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
         .speed-result { font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; background: var(--bg-inner); max-width: 65px; text-align: center; font-weight: 700; border: 1px solid var(--border); color: var(--text-sub); }
@@ -561,8 +561,7 @@ export async function serveHTML(env, request) {
 
         document.addEventListener('DOMContentLoaded', function() {
             document.addEventListener('keydown', function(e) {
-                // 新增焦點判定：如果使用者正將游標停留在 INPUT (輸入密碼框) 或 TEXTAREA (來源管理編輯框) 內，
-                // 則直接放行（return），交由瀏覽器原生換行，絕對不執行登入熱鍵！
+                // 如果使用者正在輸入區（INPUT 或 TEXTAREA）內打字，忽略此全域監聽，以免妨礙正常輸入
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
                 if (e.key === 'Enter') {
@@ -570,11 +569,7 @@ export async function serveHTML(env, request) {
                         e.preventDefault(); loginMain();
                     } else {
                         const loginModalEl = document.getElementById('login-modal');
-                        // 使用 window.getComputedStyle 準確獲取經由 CSS 渲染後的真實顯示狀態，徹底修正讀取 "" 導致判斷失效的 JS 經典 Bug
-                        if (loginModalEl && window.getComputedStyle(loginModalEl).display !== 'none') { 
-                            e.preventDefault(); 
-                            loginModal(); 
-                        }
+                        if (loginModalEl && loginModalEl.style.display !== 'none') { e.preventDefault(); loginModal(); }
                     }
                 }
             });
