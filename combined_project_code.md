@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Thu Jun 25 15:05:32 UTC 2026
+Generated on: Thu Jun 25 15:05:59 UTC 2026
 
 ## File: README.md
 ````md
@@ -970,10 +970,10 @@ export default {
           case '/my-ip': return handleUserIP(request);
           case '/admin-login': return await handleAdminLogin(request, env);
           case '/admin-status': return await handleAdminStatus(env);
-          case '/admin-logout': return await handleAdminLogout(env);
+          case '/admin-logout': return await handleAdminLogout(request, env);
           case '/admin-token': return await handleAdminToken(request, env);
           
-          // 新增：動態網址來源控制端點
+          // 動態網址來源控制端點
           case '/cidr-sources': 
             if (request.method === 'POST') return await handleSaveCidrSources(env, request);
             return await handleGetCidrSources(env);
