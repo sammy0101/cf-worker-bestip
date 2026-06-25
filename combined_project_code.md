@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Tue Jun 16 15:41:39 UTC 2026
+Generated on: Thu Jun 25 15:05:00 UTC 2026
 
 ## File: README.md
 ````md
@@ -188,7 +188,6 @@ export async function serveHTML(env, request) {
       sessionId = url.searchParams.get('session');
     }
 
-    // 已確認：此處最外層開頭為乾淨的單個反單引號，無任何反斜線 (\)
     const html = `<!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -253,6 +252,9 @@ export async function serveHTML(env, request) {
         
         .button-slate { background: rgba(113, 113, 122, 0.08); color: #71717a; border: 1px solid rgba(113, 113, 122, 0.15); }
         .button-slate:hover { background: rgba(113, 113, 122, 0.12); border-color: #71717a; }
+
+        .button-warning { background: rgba(245, 158, 11, 0.08); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.15); }
+        .button-warning:hover { background: rgba(245, 158, 11, 0.12); border-color: #d97706; }
 
         /* 支援端口資訊標籤 */
         .port-box { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
@@ -390,9 +392,9 @@ export async function serveHTML(env, request) {
     </style>
 </head>
 <body>
-    <div class="admin-indicator">
-        <div class="admin-badge ${isLoggedIn ? '' : 'logged-out'}" onclick="${isLoggedIn ? 'logout()' : ''}" id="admin-badge">${isLoggedIn ? '🔐 管理員' : '🔒 未登入'}</div>
-        ${isLoggedIn ? `<div class="dropdown-content" id="admin-dropdown" style="display:none; position:absolute; right:0;"><a onclick="logout()">退出登入</a></div>` : ''}
+    <div class="admin-indicator" style="position: relative;">
+        <div class="admin-badge ${isLoggedIn ? '' : 'logged-out'}" onclick="${isLoggedIn ? 'toggleAdminDropdown(event)' : ''}" id="admin-badge">${isLoggedIn ? '🔐 管理員' : '🔒 未登入'}</div>
+        ${isLoggedIn ? `<div class="dropdown-content" id="admin-dropdown" style="display:none; position:absolute; right:0; top:100%; margin-top:4px; min-width:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);"><a onclick="logout()">退出登入</a></div>` : ''}
     </div>
 
     <div class="container">
@@ -561,7 +563,6 @@ export async function serveHTML(env, request) {
 
         document.addEventListener('DOMContentLoaded', function() {
             document.addEventListener('keydown', function(e) {
-                // 如果使用者正在輸入區（INPUT 或 TEXTAREA）內打字，忽略此全域監聽，以免妨礙正常輸入
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
                 if (e.key === 'Enter') {
@@ -599,7 +600,6 @@ export async function serveHTML(env, request) {
                 }
             }
 
-            // === 網頁載入時還原重新整理前暫存的日誌 ===
             const savedLogs = sessionStorage.getItem('restore_logs');
             if (savedLogs) {
                 const logBox = document.getElementById('log-box');
@@ -611,6 +611,69 @@ export async function serveHTML(env, request) {
                 sessionStorage.removeItem('restore_logs'); 
             }
         });
+
+        // 動態關閉下拉管理選單
+        document.addEventListener('click', function() {
+            const dropdown = document.getElementById('admin-dropdown');
+            if (dropdown) dropdown.style.display = 'none';
+        });
+
+        function toggleAdminDropdown(event) {
+            if (event) event.stopPropagation();
+            const dropdown = document.getElementById('admin-dropdown');
+            if (dropdown) {
+                dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        function copyIP(ip) {
+            if (!navigator.clipboard) {
+                const ta = document.createElement('textarea');
+                ta.value = ip;
+                ta.style.position = 'fixed';
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    alert('已複製 IP: ' + ip);
+                } catch (err) {
+                    alert('複製失敗，請手動複製。');
+                }
+                document.body.removeChild(ta);
+                return;
+            }
+            navigator.clipboard.writeText(ip).then(() => {
+                alert('已複製 IP: ' + ip);
+            }).catch(err => {
+                alert('複製失敗: ' + err);
+            });
+        }
+
+        function copyAllFastIPs() {
+            const items = document.querySelectorAll('.ip-item');
+            const ips = Array.from(items).map(el => el.dataset.ip).join('\\n');
+            if (!ips) return alert('沒有可複製的 IP');
+            if (!navigator.clipboard) {
+                const ta = document.createElement('textarea');
+                ta.value = ips;
+                ta.style.position = 'fixed';
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    alert('已複製所有優選 IP 到剪貼簿');
+                } catch (err) {
+                    alert('複製失敗，請手動複製。');
+                }
+                document.body.removeChild(ta);
+                return;
+            }
+            navigator.clipboard.writeText(ips).then(() => {
+                alert('已複製所有優選 IP 到剪貼簿');
+            }).catch(err => {
+                alert('複製失敗: ' + err);
+            });
+        }
 
         function addLog(msg, type='normal') {
             const box = document.getElementById('log-box'); if(!box) return; box.style.display='block';
@@ -673,29 +736,25 @@ export async function serveHTML(env, request) {
                 if(res.success) { 
                     const logBox = document.getElementById('log-box');
                     
-                    // 1. 動畫化：以 150ms 延遲逐條印出每個來源的提取狀態，富有動感
                     if (res.results && res.results.length) {
                         res.results.forEach((item, index) => {
                             setTimeout(() => {
                                 if (item.status === 'success') {
                                     addLog(\`➡️ 來源: \${item.name} | 提取: \${item.count} 個\`, 'info');
                                 } else {
-                                    addLog(\`❌ 來源: \${item.name} | 失敗: \s\${item.error}\`, 'error');
+                                    addLog(\`❌ 來源: \${item.name} | 失敗: \${item.error}\`, 'error');
                                 }
-                                // 每跑出一行，就更新一次暫存，確保重新整理後保留最完整的終端畫面
                                 if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
                             }, (index + 1) * 150);
                         });
                     }
 
-                    // 2. 所有明細動畫播完（約 4.3 秒）後，在最底部印出大字「成功彙總訊息」
                     const summaryDelay = (res.results ? res.results.length * 150 : 0) + 200;
                     setTimeout(() => {
                         addLog(\`✅ 更新成功！目前庫存: \${res.totalIPs} 個 IP (已套用網段隨機抽樣模式)\`);
                         if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
                     }, summaryDelay);
 
-                    // 3. 成功彙總印出後，再留 2 秒緩衝時間，隨後自動重新整理網頁
                     const reloadDelay = summaryDelay + 2000;
                     setTimeout(() => {
                         location.reload();
@@ -761,7 +820,6 @@ export async function serveHTML(env, request) {
             navigator.clipboard.writeText(url).then(() => alert('已複製: ' + url));
         }
 
-        // 新增：打開來源網址管理彈窗
         async function openSourcesModal() {
             const modal = document.getElementById('sources-modal');
             const textarea = document.getElementById('sources-textarea');
@@ -782,7 +840,6 @@ export async function serveHTML(env, request) {
             }
         }
 
-        // 新增：儲存自訂來源網址
         async function saveSources() {
             const textarea = document.getElementById('sources-textarea');
             if (!textarea) return;
@@ -801,7 +858,6 @@ export async function serveHTML(env, request) {
             }
         }
 
-        // 新增：載入預設名單
         function resetSourcesToDefault() {
             if (confirm('確定要載入系統預設的訂閱來源嗎？儲存後將覆蓋您目前的自訂名單。')) {
                 const defaults = ${JSON.stringify(CIDR_SOURCE_URLS)};
