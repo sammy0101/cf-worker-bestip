@@ -226,9 +226,9 @@ export async function serveHTML(env, request) {
     </style>
 </head>
 <body>
-    <div class="admin-indicator" style="position: relative;">
+    <div class="admin-indicator">
         <div class="admin-badge ${isLoggedIn ? '' : 'logged-out'}" onclick="${isLoggedIn ? 'toggleAdminDropdown(event)' : ''}" id="admin-badge">${isLoggedIn ? '🔐 管理員' : '🔒 未登入'}</div>
-        ${isLoggedIn ? `<div class="dropdown-content" id="admin-dropdown" style="display:none; position:absolute; right:0; top:100%; margin-top:4px; min-width:120px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);"><a onclick="logout()">退出登入</a></div>` : ''}
+        ${isLoggedIn ? `<div class="dropdown-content" id="admin-dropdown" style="display:none; position:absolute; right:0; left:auto; top:100%; margin-top:4px; min-width:120px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"><a onclick="logout()">退出登入</a></div>` : ''}
     </div>
 
     <div class="container">
@@ -574,9 +574,9 @@ export async function serveHTML(env, request) {
                         res.results.forEach((item, index) => {
                             setTimeout(() => {
                                 if (item.status === 'success') {
-                                    addLog(\`➡️ 來源: \${item.name} | 提取: \${item.count} 個\`, 'info');
+                                    addLog(\"➡️ 來源: \" + item.name + \" | 提取: \" + item.count + \" 個\", 'info');
                                 } else {
-                                    addLog(\`❌ 來源: \${item.name} | 失敗: \${item.error}\`, 'error');
+                                    addLog(\"❌ 來源: \" + item.name + \" | 失敗: \" + item.error, 'error');
                                 }
                                 if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
                             }, (index + 1) * 150);
@@ -585,7 +585,7 @@ export async function serveHTML(env, request) {
 
                     const summaryDelay = (res.results ? res.results.length * 150 : 0) + 200;
                     setTimeout(() => {
-                        addLog(\`✅ 更新成功！目前庫存: \${res.totalIPs} 個 IP (已套用網段隨機抽樣模式)\`);
+                        addLog(\"✅ 更新成功！目前庫存: \" + res.totalIPs + \" 個 IP (已套用網段隨機抽樣模式)\");
                         if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
                     }, summaryDelay);
 
