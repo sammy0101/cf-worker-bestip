@@ -106,8 +106,22 @@ export async function serveHTML(env, request) {
         /* 利用 display: contents 讓子節點完全融入 Grid 中對齊 */
         .ip-info { display: contents; }
         
-        /* 移除限制，加入 width: 100% 自適應、自動隱藏溢出與優雅省略號 */
-        .colo-badge { font-size: 0.725rem; padding: 3px 6px; border-radius: 6px; background: var(--bg-inner); color: var(--text-sub); font-weight: 700; text-align: center; white-space: nowrap; border: 1px solid var(--border); width: 100%; display: inline-block; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.02em; }
+        /* 移除底框，改為純文字並靠左對齊 */
+        .colo-badge { 
+            font-size: 0.8rem; 
+            padding: 0; 
+            background: transparent; 
+            color: var(--text-sub); 
+            font-weight: 600; 
+            text-align: left; 
+            white-space: nowrap; 
+            border: none; 
+            width: 100%; 
+            display: inline-block; 
+            overflow: hidden; 
+            text-overflow: ellipsis; 
+            letter-spacing: 0.02em; 
+        }
         .ip-address { font-family: monospace; font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
         .speed-result { font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; background: var(--bg-inner); max-width: 65px; text-align: center; font-weight: 700; border: 1px solid var(--border); color: var(--text-sub); }
         .speed-fast-bg { background: rgba(16, 185, 129, 0.08); color: #065f46; border-color: rgba(16, 185, 129, 0.15); } 
@@ -192,7 +206,7 @@ export async function serveHTML(env, request) {
             .ip-table-header { grid-template-columns: 115px 1fr 65px 50px; padding: 8px 12px; font-size: 0.7rem; }
             .ip-item { grid-template-columns: 115px 1fr 65px 50px; padding: 10px 12px; }
             .ip-address { font-size: 0.8rem; }
-            .colo-badge { font-size: 0.65rem; padding: 2px 4px; }
+            .colo-badge { font-size: 0.725rem; }
             .speed-result { min-width: 55px; font-size: 0.675rem; padding: 2px 6px; }
             .small-btn { padding: 4px 8px; font-size: 0.7rem; }
             .log-box { padding: 12px; height: 160px; }
@@ -216,7 +230,7 @@ export async function serveHTML(env, request) {
             .button-secondary { background: var(--bg-card); color: var(--text-main); border-color: var(--border); }
             .button-secondary:hover { background: var(--bg-inner); }
             
-            .colo-badge { background: #27272a; color: #e4e4e7; border-color: #3f3f46; }
+            .colo-badge { background: transparent; color: var(--text-sub); border: none; }
             .speed-fast-bg { background: rgba(52, 211, 153, 0.08); color: #a7f3d0; border-color: rgba(52, 211, 153, 0.15); }
             
             .tag-http { background: #450a0a; color: #fecdd3; border-color: #78350f; }
@@ -356,7 +370,7 @@ export async function serveHTML(env, request) {
                             const colo = item.colo || 'UNK';
                             const cnName = COLO_MAP[colo] ? ` (${COLO_MAP[colo]})` : '';
                             const coloDisplay = colo + cnName;
-                            const coloStyle =['HKG', 'SJC', 'LAX', 'TPE'].includes(colo) ? 'background:#dcfce7; color:#166534;' : '';
+                            const coloStyle =['HKG', 'SJC', 'LAX', 'TPE'].includes(colo) ? 'color: #10b981; font-weight: 700;' : '';
                             return `<div class="ip-item" data-ip="${item.ip}"><div class="ip-info"><span class="colo-badge" style="${coloStyle}">${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result ${speedClass}">${item.latency}ms</span></div><button class="small-btn" onclick="copyIP('${item.ip}')">複製</button></div>`;
                         }).join('') : '<p style="text-align:center; padding:30px; color:#a1a1aa;">暫無數據，請點擊更新</p>'}
                     </div>
@@ -574,9 +588,9 @@ export async function serveHTML(env, request) {
                         res.results.forEach((item, index) => {
                             setTimeout(() => {
                                 if (item.status === 'success') {
-                                    addLog(\"➡️ 來源: \" + item.name + \" | 提取: \" + item.count + \" 個\", 'info');
+                                    addLog("➡️ 來源: " + item.name + " | 提取: " + item.count + " 個", 'info');
                                 } else {
-                                    addLog(\"❌ 來源: \" + item.name + \" | 失敗: \" + item.error, 'error');
+                                    addLog("❌ 來源: " + item.name + " | 失敗: " + item.error, 'error');
                                 }
                                 if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
                             }, (index + 1) * 150);
@@ -585,7 +599,7 @@ export async function serveHTML(env, request) {
 
                     const summaryDelay = (res.results ? res.results.length * 150 : 0) + 200;
                     setTimeout(() => {
-                        addLog(\"✅ 更新成功！目前庫存: \" + res.totalIPs + \" 個 IP (已套用網段隨機抽樣模式)\");
+                        addLog("✅ 更新成功！目前庫存: " + res.totalIPs + " 個 IP (已套用網段隨機抽樣模式)");
                         if(logBox) sessionStorage.setItem('restore_logs', logBox.innerHTML);
                     }, summaryDelay);
 
@@ -637,7 +651,7 @@ export async function serveHTML(env, request) {
                     const colo = item.colo || 'UNK';
                     const cnName = COLO_MAP[colo] ? \` (\${COLO_MAP[colo]})\` : '';
                     const coloDisplay = colo + cnName;
-                    const coloStyle =['HKG','SJC','LAX','TPE'].includes(item.colo) ? 'background:#dcfce7;color:#166534;' : '';
+                    const coloStyle =['HKG','SJC','LAX','TPE'].includes(item.colo) ? 'color:#10b981;font-weight:700;' : '';
                     newHtml += \`<div class="ip-item" data-ip="\${item.ip}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">\${item.ip}</span><span class="speed-result">\${item.latency}ms</span></div><button class="small-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
                 });
                 document.getElementById('ip-list').innerHTML = newHtml;
