@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Thu Jun 25 15:05:00 UTC 2026
+Generated on: Thu Jun 25 15:05:32 UTC 2026
 
 ## File: README.md
 ````md
@@ -1091,7 +1091,20 @@ export async function handleAdminStatus(env) {
     return jsonResponse({ hasAdminPassword: !!env.ADMIN_PASSWORD, hasToken: !!await getTokenConfig(env), tokenConfig: await getTokenConfig(env) }); 
 }
 
-export async function handleAdminLogout(env) { 
+export async function handleAdminLogout(request, env) { 
+    try {
+        const authHeader = request.headers.get('Authorization');
+        let sessionId = null;
+        if (authHeader && authHeader.startsWith('Bearer ')) { 
+            sessionId = authHeader.slice(7);
+        } else {
+            const url = new URL(request.url);
+            sessionId = url.searchParams.get('session');
+        }
+        if (sessionId) {
+            await env.IP_STORAGE.delete(`session_${sessionId}`);
+        }
+    } catch (e) {}
     return jsonResponse({ success: true }); 
 }
 
