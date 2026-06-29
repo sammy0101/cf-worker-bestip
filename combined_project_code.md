@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Thu Jun 25 15:14:47 UTC 2026
+Generated on: Mon Jun 29 10:17:45 UTC 2026
 
 ## File: README.md
 ````md
@@ -34,6 +34,8 @@ Generated on: Thu Jun 25 15:14:47 UTC 2026
 * ⚡ **獨立的前/後端測速上限**：
   * **後台自動排程（每 6 小時一次）**：限制在 **45 次** 測速以內，完美貼合免費版單次 50 次子請求的硬限制 [2]。
   * **前端瀏覽器手動測速**：允許發起 **1000 次** 甚至更高的大範圍深層測速，不影響後端運行，且在手機端亦有完美的排版適配。
+
+<img width="2559" height="1250" alt="螢幕擷取畫面 2026-06-29 181708" src="https://github.com/user-attachments/assets/be9dc68d-c165-4815-b3b9-8d9f1a094daf" />
 
 ---
 
