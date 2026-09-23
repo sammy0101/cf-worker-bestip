@@ -12,7 +12,7 @@ export async function serveHTML(env, request) {
     let fastIPs = [];
     if (isLoggedIn) {
         data = await getStoredIPs(env);
-        // 保證預設呈現後端排程/手動更新出來的最新優選結果
+        // 預設呈現後端排程/手動更新出來的最新優選結果
         const speedData = await getStoredSpeedIPs(env);
         fastIPs = speedData.fastIPs || [];
     }
@@ -144,7 +144,6 @@ export async function serveHTML(env, request) {
         }
         .ip-address { font-family: monospace; font-weight: 700; font-size: 0.875rem; color: var(--text-main); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         
-        /* 數值標籤居中設定 */
         .speed-result { 
             font-size: 0.725rem; 
             padding: 2px 4px; 
@@ -319,7 +318,7 @@ export async function serveHTML(env, request) {
                     
                     <div class="button-group">
                         <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
-                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 優選 IP 測速</button>
+                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 優選 IP測速</button>
                         
                         <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
                             <div class="dropdown-content">
@@ -377,7 +376,6 @@ export async function serveHTML(env, request) {
                     <div class="progress-bar" id="progress"><div class="progress-fill" id="progress-fill"></div></div>
                     <div id="status-text" style="text-align:center; font-size:0.8rem; color:var(--text-sub); margin-bottom:10px;"></div>
                     
-                    <!-- 嚴格對齊的五欄表頭：機房 | IP 位址 | 延遲 | 速度 | 操作 -->
                     <div class="ip-table-header">
                         <span>機房</span>
                         <span>IP 位址</span>
@@ -631,7 +629,7 @@ export async function serveHTML(env, request) {
             btn.disabled = false; btn.innerText = '🔄 立即更新庫';
         }
 
-        // ==================== 專注只測後端測出的 20 個優選節點 ====================
+        // ==================== 只測後端測出的 20 個優選節點 ====================
         async function startSpeedTest() {
             let targets = [];
 
@@ -704,13 +702,13 @@ export async function serveHTML(env, request) {
                 await new Promise(r => setTimeout(r, 50));
             }
 
-            // 依下載速度由大到小排序（若速度相同則依延遲由低到高）
+            // 依下載速度由高到低排序（若速度相同則依延遲由低到高）
             finalResults.sort((a, b) => {
                 if (b.speed !== a.speed) return b.speed - a.speed;
                 return a.latency - b.latency;
             });
 
-            // 即時重構渲染右側表格
+            // 即時重構渲染右側表格 (修正 \${item.ip} 轉義)
             let newHtml = '';
             finalResults.forEach(item => {
                 const colo = item.colo || 'UNK';
@@ -720,7 +718,7 @@ export async function serveHTML(env, request) {
                 const speedLatClass = item.latency < 200 ? 'speed-fast-bg' : '';
                 const speedDownClass = item.speed >= 10 ? 'speed-fast-bg' : '';
                 const speedDisplay = item.speed ? \`\${item.speed} MB/s\` : '-';
-                newHtml += \`<div class="ip-item" data-ip="\${item.ip}" data-colo="\${colo}" data-latency="\${item.latency}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result \${speedLatClass}">\${item.latency}ms</span><span class="speed-result \${speedDownClass}">\${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
+                newHtml += \`<div class="ip-item" data-ip="\${item.ip}" data-colo="\${colo}" data-latency="\${item.latency}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">\${item.ip}</span><span class="speed-result \${speedLatClass}">\${item.latency}ms</span><span class="speed-result \${speedDownClass}">\${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
             });
             document.getElementById('ip-list').innerHTML = newHtml;
 
