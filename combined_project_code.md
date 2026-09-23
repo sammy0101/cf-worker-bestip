@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Wed Sep 23 11:00:23 UTC 2026
+Generated on: Wed Sep 23 11:04:45 UTC 2026
 
 ## File: .github/workflows/combine-code.yml
 ````yml
@@ -444,7 +444,7 @@ async function fetchURLWithTimeout(url) {
 ````js
 // src/config.js
 
-export const VERSION = "V4.2.0";             // 系統版本號
+export const VERSION = "V4.2.1";             // 系統版本號
 export const FAST_IP_COUNT = 20;             // 優質 IP 數量
 export const AUTO_TEST_MAX_IPS = 45;        // 定時任務測速最大數量 (安全限制在 45 以內)
 export const SAFE_SUBREQUEST_LIMIT = 45;    // 子請求安全硬上限，防止免費方案部署時發生異常
