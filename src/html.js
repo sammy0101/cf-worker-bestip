@@ -1,7 +1,7 @@
 // src/html.js
 import { VERSION, FAST_IP_COUNT, AUTO_TEST_MAX_IPS, BROWSER_TEST_MAX_IPS, COLO_MAP, CIDR_SOURCE_URLS } from './config.js';
 import { verifyAdmin, getTokenConfig } from './auth.js';
-import { getStoredIPs, getStoredSpeedIPs, getStoredBrowserIPs } from './ip.js';
+import { getStoredIPs, getStoredSpeedIPs } from './ip.js';
 
 export async function serveHTML(env, request) {
     const isLoggedIn = await verifyAdmin(request, env);
@@ -12,25 +12,9 @@ export async function serveHTML(env, request) {
     let fastIPs = [];
     if (isLoggedIn) {
         data = await getStoredIPs(env);
-        // 一律以「後端排程測出」的最新 20 個優選節點 (如 LHR 倫敦) 為基準
+        // 單一數據源：直接讀取核心優選 20 個節點
         const speedData = await getStoredSpeedIPs(env);
         fastIPs = speedData.fastIPs || [];
-
-        // 若先前測過本機下載速度，合併「速度」數值，保留後端原始機房與延遲
-        try {
-            const browserData = await getStoredBrowserIPs(env);
-            if (browserData && browserData.fastIPs && browserData.fastIPs.length > 0) {
-                const speedMap = new Map(browserData.fastIPs.map(b => [b.ip, b.speed]));
-                fastIPs.forEach(item => {
-                    if (speedMap.has(item.ip)) {
-                        item.speed = speedMap.get(item.ip);
-                    }
-                });
-                if (fastIPs.some(i => i.speed)) {
-                    fastIPs.sort((a, b) => (b.speed || 0) - (a.speed || 0));
-                }
-            }
-        } catch(e) {}
     }
     
     let sessionId = null;
@@ -105,7 +89,6 @@ export async function serveHTML(env, request) {
         .tag-http { background: #fef2f2; color: #991b1b; border-color: #fee2e2; } 
         .tag-https { background: #f0f9ff; color: #075985; border-color: #e0f2fe; }
 
-        /* 五欄式佈局：機房(110px) | IP位址(1fr) | 延遲(70px) | 速度(85px) | 操作(60px) */
         .ip-table-header { 
             display: grid; 
             grid-template-columns: 110px 1fr 70px 85px 60px; 
@@ -176,7 +159,6 @@ export async function serveHTML(env, request) {
         }
         .speed-fast-bg { background: rgba(16, 185, 129, 0.08); color: #065f46; border-color: rgba(16, 185, 129, 0.15); } 
         
-        /* 專門為表格操作欄設定的對齊樣式 */
         .action-btn {
             width: 100%;
             max-width: 48px;
@@ -358,18 +340,17 @@ export async function serveHTML(env, request) {
                         <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
                         <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 優選 IP 測速</button>
                         
+                        <!-- 已刪除冗餘的本機測速，收斂為直觀的優選與完整庫 -->
                         <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
                             <div class="dropdown-content">
-                                <a href="/fast-ips.txt" target="_blank">🚀 查看後端優選 IP</a>
-                                <a href="/browser-ips.txt" target="_blank">⚡ 查看本機測速結果</a>
+                                <a href="/fast-ips.txt" target="_blank">🚀 查看優選 IP</a>
                                 <a href="/ip.txt" target="_blank">📦 查看完整 IP 庫</a>
                             </div>
                         </div>
                         
                         <div class="dropdown"><button class="button button-purple">🔌 複製 API 連結 ▼</button>
                             <div class="dropdown-content">
-                                <a onclick="copyApiUrl('fast')">🚀 複製後端優選 IP API</a>
-                                <a onclick="copyApiUrl('browser')">⚡ 複製本機測速結果 API</a>
+                                <a onclick="copyApiUrl('fast')">🚀 複製優選 IP API</a>
                                 <a onclick="copyApiUrl('all')">📦 複製完整 IP 庫 API</a>
                             </div>
                         </div>
@@ -702,7 +683,7 @@ export async function serveHTML(env, request) {
             const progressFill = document.getElementById('progress-fill');
             const statusText = document.getElementById('status-text');
 
-            addLog(\`⚡ 開始對後端優選的 \${targets.length} 個節點進行下載頻寬測速 (單節點 2MB)...\`, 'info');
+            addLog(\`⚡ 開始對優選的 \${targets.length} 個節點進行下載頻寬測速 (單節點 2MB)...\`, 'info');
             
             let finalResults = [];
             const DOWNLOAD_BYTES = 2000000; // 2MB
@@ -753,6 +734,7 @@ export async function serveHTML(env, request) {
             });
             document.getElementById('ip-list').innerHTML = newHtml;
 
+            // 直接更新回傳至核心優選資料庫 (cloudflare_fast_ips)
             try { 
                 await api('/upload-results', 'POST', { fastIPs: finalResults }); 
                 addLog('✅ 優選結果（已依下載頻寬排序）已同步至雲端 KV'); 
