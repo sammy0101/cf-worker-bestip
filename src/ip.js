@@ -19,17 +19,15 @@ export async function getStoredSpeedIPs(env) { try { return JSON.parse(await env
 export async function getStoredBrowserIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('browser_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
 
 export async function updateAllIPs(env) {
-    // 動態獲取訂閱來源網址
     const urls = await getCidrSources(env);
     const uniqueIPs = new Set();
     const results = [];
     const cidrRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?:\/(?:[0-9]{1,2}))?\b/gi;
     
-    // === 1. 動態從 Cloudflare 官方 API 獲取最新的安全 IPv4 網段 ===
     let officialCidrs = [];
     try {
         const cfIpsRes = await fetch('https://api.cloudflare.com/client/v4/ips', {
-            signal: AbortSignal.timeout(5000), // 設定 5 秒超時
+            signal: AbortSignal.timeout(5000),
             headers: { 'User-Agent': 'CF-Worker' }
         });
         if (cfIpsRes.ok) {
@@ -42,7 +40,6 @@ export async function updateAllIPs(env) {
         console.error("無法取得 Cloudflare 官方即時 IP 白名單，將起用備用清單:", e.message);
     }
 
-    // === 2. 備用防線：如果官方 API 連線失敗，則自動套用這套備用白名單 ===
     if (officialCidrs.length === 0) {
         officialCidrs = [
             "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
@@ -52,7 +49,6 @@ export async function updateAllIPs(env) {
         ];
     }
 
-    // === 3. 開始抓取各個優化源，並使用剛才獲取的 officialCidrs 進行安全過濾 ===
     for (const url of urls) {
         try {
             const txt = await fetchURLWithTimeout(url);
@@ -61,7 +57,6 @@ export async function updateAllIPs(env) {
             matches.forEach(m => {
                 if (m.includes('/')) {
                     expandCIDR(m).forEach(ip => { 
-                        // 套用動態獲取的白名單驗證
                         if (isValidIPv4(ip) && isCloudflareIP(ip, officialCidrs)) { 
                             uniqueIPs.add(ip); 
                             count++; 
@@ -124,22 +119,43 @@ export async function autoSpeedTestAndStore(env, ips, limit = AUTO_TEST_MAX_IPS)
     await env.IP_STORAGE.put('cloudflare_fast_ips', JSON.stringify({ fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'backend_auto' }));
 }
 
+// 支援一階段 1KB 延遲測試與二階段 2MB 頻寬下載串流
 export async function handleSpeedTest(request, env) {
     const url = new URL(request.url);
     const ip = url.searchParams.get('ip');
+    const bytes = parseInt(url.searchParams.get('bytes') || '1000', 10);
     if (!ip) return jsonResponse({ error: 'IP required' }, 400);
+
     try {
-      const testUrl = `https://speed.cloudflare.com/__down?bytes=1000`;
+      const testUrl = `https://speed.cloudflare.com/__down?bytes=${bytes}`;
+      const timeout = bytes > 1000 ? 7000 : 2500;
       const response = await fetch(testUrl, { 
         headers: { 'Host': 'speed.cloudflare.com' }, 
         cf: { resolveOverride: ip }, 
-        signal: AbortSignal.timeout(2500)
+        signal: AbortSignal.timeout(timeout)
       });
       if (!response.ok) throw new Error(response.statusText);
-      await response.text(); 
+
+      // 第一階段延遲測試（小資料量 1KB）
+      if (bytes <= 1000) {
+        await response.text(); 
+        const ray = response.headers.get('cf-ray');
+        return jsonResponse({ success: true, ip, colo: ray ? ray.split('-').pop() : null, time: new Date() });
+      }
+
+      // 第二階段頻寬測試（大資料量 2MB）：直接串流回傳 Body 讓前端計時測速
       const ray = response.headers.get('cf-ray');
-      return jsonResponse({ success: true, ip, colo: ray ? ray.split('-').pop() : null, time: new Date() });
-    } catch (error) { return jsonResponse({ success: false, ip, error: error.message }, 200); }
+      return new Response(response.body, {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers': 'CF-Ray',
+          'CF-Ray': ray || ''
+        }
+      });
+    } catch (error) { 
+      return jsonResponse({ success: false, ip, error: error.message }, 200); 
+    }
 }
 
 export async function testIPSpeed(ip) {
@@ -186,6 +202,7 @@ export async function handleGetFastIPsText(env, request) {
     return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
 }
 
+// 支援在 /browser-ips.txt 輸出下載傳輸速度
 export async function handleGetBrowserIPsText(env, request) {
     const url = new URL(request.url);
     const format = url.searchParams.get('format');
@@ -197,14 +214,15 @@ export async function handleGetBrowserIPsText(env, request) {
     } else {
         txt = list.map(i => {
             const cn = COLO_MAP[i.colo] ? `(${COLO_MAP[i.colo]})` : '';
-            return `${i.ip}#${i.colo}${cn}:${i.latency}ms`;
+            const speedStr = i.speed ? ` | ${i.speed} MB/s` : '';
+            return `${i.ip}#${i.colo}${cn}:${i.latency}ms${speedStr}`;
         }).join('\n');
     }
     return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
 }
 
 export async function handleGetFastIPs(env, request) { return jsonResponse(await getStoredSpeedIPs(env)); }
-export async function handleGetIPs(env, request) { const d = await getStoredIPs(env); return new Response(d.ips.join('\n'), { headers: {'Content-Type': 'text/plain'} }); }
+export async function handleGetIPs(env, request) { const d = await getStoredIPs(env); return new Response((d.ips || []).join('\n'), { headers: {'Content-Type': 'text/plain; charset=utf-8'} }); }
 export async function handleRawIPs(env, request) { return jsonResponse(await getStoredIPs(env)); }
 export async function handleItdogData(env, request) { const d = await getStoredSpeedIPs(env); return jsonResponse({ ips: (d.fastIPs||[]).map(i => i.ip) }); }
 
@@ -220,20 +238,17 @@ export async function handleUserIP(request) {
     });
 }
 
-// 獲取動態來源
 export async function handleGetCidrSources(env) {
     const urls = await getCidrSources(env);
     return jsonResponse({ success: true, urls });
 }
 
-// 儲存修改後的網址
 export async function handleSaveCidrSources(env, request) {
     if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
     try {
         const { urls } = await request.json();
         if (!urls || !Array.isArray(urls)) return jsonResponse({ error: '無效數據' }, 400);
         
-        // 清理空行並確認是 HTTP/HTTPS
         const cleanedUrls = urls.map(u => u.trim()).filter(u => u.startsWith('http'));
         await env.IP_STORAGE.put('cidr_source_urls', JSON.stringify(cleanedUrls));
         return jsonResponse({ success: true, urls: cleanedUrls });
