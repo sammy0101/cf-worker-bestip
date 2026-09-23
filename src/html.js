@@ -1,7 +1,7 @@
 // src/html.js
 import { VERSION, FAST_IP_COUNT, AUTO_TEST_MAX_IPS, BROWSER_TEST_MAX_IPS, COLO_MAP, CIDR_SOURCE_URLS } from './config.js';
 import { verifyAdmin, getTokenConfig } from './auth.js';
-import { getStoredIPs, getStoredSpeedIPs, getStoredBrowserIPs } from './ip.js';
+import { getStoredIPs, getStoredSpeedIPs } from './ip.js';
 
 export async function serveHTML(env, request) {
     const isLoggedIn = await verifyAdmin(request, env);
@@ -12,14 +12,9 @@ export async function serveHTML(env, request) {
     let fastIPs = [];
     if (isLoggedIn) {
         data = await getStoredIPs(env);
-        // 優先載入包含本機測速速度的資料，若無則顯示後端預設優選列表
-        const browserData = await getStoredBrowserIPs(env);
-        if (browserData.fastIPs && browserData.fastIPs.length > 0) {
-            fastIPs = browserData.fastIPs;
-        } else {
-            const speedData = await getStoredSpeedIPs(env);
-            fastIPs = speedData.fastIPs || [];
-        }
+        // 保證預設呈現後端排程/手動更新出來的最新優選結果
+        const speedData = await getStoredSpeedIPs(env);
+        fastIPs = speedData.fastIPs || [];
     }
     
     let sessionId = null;
@@ -94,10 +89,39 @@ export async function serveHTML(env, request) {
         .tag-http { background: #fef2f2; color: #991b1b; border-color: #fee2e2; } 
         .tag-https { background: #f0f9ff; color: #075985; border-color: #e0f2fe; }
 
-        /* 五欄式佈局：機房 | IP 位址 | 延遲 | 速度 | 操作 */
-        .ip-table-header { display: grid; grid-template-columns: 110px 1fr 65px 75px 50px; padding: 10px 16px; font-size: 0.725rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--border); border-bottom: none; background: var(--bg-inner); border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
+        /* 五欄式佈局：機房(110px) | IP位址(1fr) | 延遲(70px) | 速度(85px) | 操作(55px) */
+        .ip-table-header { 
+            display: grid; 
+            grid-template-columns: 110px 1fr 70px 85px 55px; 
+            padding: 10px 16px; 
+            font-size: 0.725rem; 
+            font-weight: 700; 
+            color: var(--text-sub); 
+            text-transform: uppercase; 
+            letter-spacing: 0.08em; 
+            border: 1px solid var(--border); 
+            border-bottom: none; 
+            background: var(--bg-inner); 
+            border-top-left-radius: var(--radius); 
+            border-top-right-radius: var(--radius); 
+            align-items: center; 
+        }
+        .ip-table-header > span:nth-child(1) { text-align: left; }
+        .ip-table-header > span:nth-child(2) { text-align: left; }
+        .ip-table-header > span:nth-child(3) { text-align: center; }
+        .ip-table-header > span:nth-child(4) { text-align: center; }
+        .ip-table-header > span:nth-child(5) { text-align: right; }
+
         .ip-list { border: 1px solid var(--border); border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); overflow: hidden; }
-        .ip-item { display: grid; grid-template-columns: 110px 1fr 65px 75px 50px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s ease; }
+        .ip-item { 
+            display: grid; 
+            grid-template-columns: 110px 1fr 70px 85px 55px; 
+            align-items: center; 
+            padding: 10px 16px; 
+            border-bottom: 1px solid var(--border); 
+            background: var(--bg-card); 
+            transition: background 0.15s ease; 
+        }
         .ip-item:hover { background: var(--bg-inner); }
         .ip-item:last-child { border-bottom: none; }
         
@@ -118,11 +142,26 @@ export async function serveHTML(env, request) {
             text-overflow: ellipsis; 
             letter-spacing: 0.02em; 
         }
-        .ip-address { font-family: monospace; font-weight: 700; font-size: 0.875rem; color: var(--text-main); }
-        .speed-result { font-size: 0.725rem; padding: 2px 6px; border-radius: 6px; background: var(--bg-inner); text-align: center; font-weight: 700; border: 1px solid var(--border); color: var(--text-sub); white-space: nowrap; }
+        .ip-address { font-family: monospace; font-weight: 700; font-size: 0.875rem; color: var(--text-main); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        
+        /* 數值標籤居中設定 */
+        .speed-result { 
+            font-size: 0.725rem; 
+            padding: 2px 4px; 
+            border-radius: 6px; 
+            background: var(--bg-inner); 
+            text-align: center; 
+            font-weight: 700; 
+            border: 1px solid var(--border); 
+            color: var(--text-sub); 
+            white-space: nowrap; 
+            width: 100%; 
+            display: block; 
+            box-sizing: border-box;
+        }
         .speed-fast-bg { background: rgba(16, 185, 129, 0.08); color: #065f46; border-color: rgba(16, 185, 129, 0.15); } 
         
-        .small-btn { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-main); font-size: 0.725rem; font-weight: 600; cursor: pointer; transition: .15s; }
+        .small-btn { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-main); font-size: 0.725rem; font-weight: 600; cursor: pointer; transition: .15s; justify-self: end; }
         .small-btn:hover { background: var(--bg-inner); border-color: var(--text-sub); }
 
         .dropdown { position: relative; display: inline-block; }
@@ -194,11 +233,11 @@ export async function serveHTML(env, request) {
             .button { width: 100%; justify-content: center; }
             .dropdown { width: 100%; display: block; }
             .dropdown-content { width: 100%; position: absolute; z-index: 10; }
-            .ip-table-header { grid-template-columns: 85px 1fr 50px 60px 45px; padding: 8px 10px; font-size: 0.675rem; }
-            .ip-item { grid-template-columns: 85px 1fr 50px 60px 45px; padding: 10px 10px; }
+            .ip-table-header { grid-template-columns: 85px 1fr 50px 65px 45px; padding: 8px 10px; font-size: 0.675rem; }
+            .ip-item { grid-template-columns: 85px 1fr 50px 65px 45px; padding: 10px 10px; }
             .ip-address { font-size: 0.775rem; }
             .colo-badge { font-size: 0.725rem; }
-            .speed-result { font-size: 0.675rem; padding: 2px 4px; }
+            .speed-result { font-size: 0.675rem; padding: 2px 2px; }
             .small-btn { padding: 4px 6px; font-size: 0.675rem; }
             .log-box { padding: 12px; height: 160px; }
         }
@@ -280,7 +319,7 @@ export async function serveHTML(env, request) {
                     
                     <div class="button-group">
                         <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
-                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 下載測速優選 IP</button>
+                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 優選 IP 測速</button>
                         
                         <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
                             <div class="dropdown-content">
@@ -338,13 +377,13 @@ export async function serveHTML(env, request) {
                     <div class="progress-bar" id="progress"><div class="progress-fill" id="progress-fill"></div></div>
                     <div id="status-text" style="text-align:center; font-size:0.8rem; color:var(--text-sub); margin-bottom:10px;"></div>
                     
-                    <!-- 五欄表頭：機房 | IP 位址 | 延遲 | 速度 | 操作 -->
+                    <!-- 嚴格對齊的五欄表頭：機房 | IP 位址 | 延遲 | 速度 | 操作 -->
                     <div class="ip-table-header">
                         <span>機房</span>
                         <span>IP 位址</span>
                         <span>延遲</span>
                         <span>速度</span>
-                        <span style="text-align:right;">操作</span>
+                        <span>操作</span>
                     </div>
                     <div class="ip-list" id="ip-list">
                         ${fastIPs.length > 0 ? fastIPs.map(item => {
@@ -592,34 +631,34 @@ export async function serveHTML(env, request) {
             btn.disabled = false; btn.innerText = '🔄 立即更新庫';
         }
 
-        // ==================== 專注只測現有 20 個優選節點 ====================
+        // ==================== 專注只測後端測出的 20 個優選節點 ====================
         async function startSpeedTest() {
-            const ipElements = document.querySelectorAll('.ip-item');
             let targets = [];
 
-            // 1. 優先直接抓取表格中已呈現的優選 IP 節點
-            ipElements.forEach(el => {
-                if (el.dataset.ip) {
-                    targets.push({
-                        ip: el.dataset.ip,
-                        colo: el.dataset.colo || 'UNK',
-                        latency: parseInt(el.dataset.latency || '0', 10)
-                    });
+            // 1. 優先直接從後端 API 抓取後端自動排程優選出的 20 個結果
+            try {
+                const res = await api('/fast-ips');
+                if (res && res.fastIPs && res.fastIPs.length) {
+                    targets = res.fastIPs;
                 }
-            });
+            } catch(e) {}
 
-            // 2. 若表格尚無資料，嘗試從後端讀取最新優選節點
+            // 2. 若 API 抓取失敗，回退使用畫面上已渲染的節點
             if (!targets.length) {
-                try {
-                    const res = await api('/fast-ips');
-                    if (res.fastIPs && res.fastIPs.length) {
-                        targets = res.fastIPs;
+                const ipElements = document.querySelectorAll('.ip-item');
+                ipElements.forEach(el => {
+                    if (el.dataset.ip) {
+                        targets.push({
+                            ip: el.dataset.ip,
+                            colo: el.dataset.colo || 'UNK',
+                            latency: parseInt(el.dataset.latency || '0', 10)
+                        });
                     }
-                } catch(e) {}
+                });
             }
 
             if (!targets.length) {
-                return addLog('❌ 列表中無可用 IP，請先點擊「🔄 立即更新庫」獲取節點', 'error');
+                return addLog('❌ 列表中無可用節點，請先點擊「🔄 立即更新庫」獲取後端優選節點', 'error');
             }
 
             clearLog(); 
@@ -630,7 +669,7 @@ export async function serveHTML(env, request) {
             const progressFill = document.getElementById('progress-fill');
             const statusText = document.getElementById('status-text');
 
-            addLog(\`⚡ 開始對當前 \${targets.length} 個優選節點進行下載頻寬實測 (單節點 2MB)...\`, 'info');
+            addLog(\`⚡ 開始對後端優選的 \${targets.length} 個節點進行本機下載頻寬實測 (單節點 2MB)...\`, 'info');
             
             let finalResults = [];
             const DOWNLOAD_BYTES = 2000000; // 2MB
@@ -642,7 +681,6 @@ export async function serveHTML(env, request) {
                 let speedMBs = 0;
 
                 try {
-                    // 同步實時測量一次當前 Ping 與下載 2MB 的傳輸速度
                     const start = performance.now();
                     const res = await fetch(\`/speedtest?ip=\${item.ip}&bytes=\${DOWNLOAD_BYTES}\`);
                     if (res.ok) {
@@ -663,10 +701,10 @@ export async function serveHTML(env, request) {
                 addLog(\`⚡ [\${item.colo}] \${item.ip} - \${item.latency}ms | 下載速度: \${item.speed} MB/s\`, item.speed >= 10 ? 'info' : 'normal');
 
                 progressFill.style.width = ((count / targets.length) * 100) + '%';
-                await new Promise(r => setTimeout(r, 60));
+                await new Promise(r => setTimeout(r, 50));
             }
 
-            // 依下載速度由高到低排序（若速度相同則依延遲由低到高）
+            // 依下載速度由大到小排序（若速度相同則依延遲由低到高）
             finalResults.sort((a, b) => {
                 if (b.speed !== a.speed) return b.speed - a.speed;
                 return a.latency - b.latency;
@@ -682,7 +720,7 @@ export async function serveHTML(env, request) {
                 const speedLatClass = item.latency < 200 ? 'speed-fast-bg' : '';
                 const speedDownClass = item.speed >= 10 ? 'speed-fast-bg' : '';
                 const speedDisplay = item.speed ? \`\${item.speed} MB/s\` : '-';
-                newHtml += \`<div class="ip-item" data-ip="\${item.ip}" data-colo="\${colo}" data-latency="\${item.latency}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">\${item.ip}</span><span class="speed-result \${speedLatClass}">\${item.latency}ms</span><span class="speed-result \${speedDownClass}">\${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
+                newHtml += \`<div class="ip-item" data-ip="\${item.ip}" data-colo="\${colo}" data-latency="\${item.latency}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result \${speedLatClass}">\${item.latency}ms</span><span class="speed-result \${speedDownClass}">\${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
             });
             document.getElementById('ip-list').innerHTML = newHtml;
 
