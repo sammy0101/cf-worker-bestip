@@ -119,7 +119,6 @@ export async function autoSpeedTestAndStore(env, ips, limit = AUTO_TEST_MAX_IPS)
     await env.IP_STORAGE.put('cloudflare_fast_ips', JSON.stringify({ fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'backend_auto' }));
 }
 
-// 支援一階段 1KB 延遲測試與二階段 2MB 頻寬下載串流
 export async function handleSpeedTest(request, env) {
     const url = new URL(request.url);
     const ip = url.searchParams.get('ip');
@@ -136,14 +135,12 @@ export async function handleSpeedTest(request, env) {
       });
       if (!response.ok) throw new Error(response.statusText);
 
-      // 第一階段延遲測試（小資料量 1KB）
       if (bytes <= 1000) {
         await response.text(); 
         const ray = response.headers.get('cf-ray');
         return jsonResponse({ success: true, ip, colo: ray ? ray.split('-').pop() : null, time: new Date() });
       }
 
-      // 第二階段頻寬測試（大資料量 2MB）：直接串流回傳 Body 讓前端計時測速
       const ray = response.headers.get('cf-ray');
       return new Response(response.body, {
         headers: {
@@ -173,40 +170,25 @@ export async function testIPSpeed(ip) {
     } catch (e) { return { success: false, ip, error: e.message }; }
 }
 
+// 核心改進：測速上傳後直接同步更新至 cloudflare_fast_ips
 export async function handleUploadResults(env, request) {
     if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
     try {
         const { fastIPs } = await request.json();
         if (!fastIPs || !Array.isArray(fastIPs)) return jsonResponse({ error: '無效數據' }, 400);
-        await env.IP_STORAGE.put('browser_fast_ips', JSON.stringify({
+        
+        await env.IP_STORAGE.put('cloudflare_fast_ips', JSON.stringify({
             fastIPs: fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'browser_upload'
         }));
         return jsonResponse({ success: true });
     } catch (e) { return jsonResponse({ error: e.message }, 500); }
 }
 
+// 優選 IP 純文字 API 導出（自動附帶下載頻寬數據）
 export async function handleGetFastIPsText(env, request) {
     const url = new URL(request.url);
     const format = url.searchParams.get('format');
     const data = await getStoredSpeedIPs(env);
-    const list = data.fastIPs || [];
-    let txt = '';
-    if (format === 'ip') {
-        txt = list.map(i => i.ip).join('\n');
-    } else {
-        txt = list.map(i => {
-            const cn = COLO_MAP[i.colo] ? `(${COLO_MAP[i.colo]})` : '';
-            return `${i.ip}#${i.colo}${cn}:${i.latency}ms`;
-        }).join('\n');
-    }
-    return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-}
-
-// 支援在 /browser-ips.txt 輸出下載傳輸速度
-export async function handleGetBrowserIPsText(env, request) {
-    const url = new URL(request.url);
-    const format = url.searchParams.get('format');
-    const data = await getStoredBrowserIPs(env);
     const list = data.fastIPs || [];
     let txt = '';
     if (format === 'ip') {
@@ -221,6 +203,7 @@ export async function handleGetBrowserIPsText(env, request) {
     return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
 }
 
+export async function handleGetBrowserIPsText(env, request) { return handleGetFastIPsText(env, request); }
 export async function handleGetFastIPs(env, request) { return jsonResponse(await getStoredSpeedIPs(env)); }
 export async function handleGetIPs(env, request) { const d = await getStoredIPs(env); return new Response((d.ips || []).join('\n'), { headers: {'Content-Type': 'text/plain; charset=utf-8'} }); }
 export async function handleRawIPs(env, request) { return jsonResponse(await getStoredIPs(env)); }
