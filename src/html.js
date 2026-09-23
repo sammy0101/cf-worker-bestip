@@ -1,7 +1,7 @@
 // src/html.js
 import { VERSION, FAST_IP_COUNT, AUTO_TEST_MAX_IPS, BROWSER_TEST_MAX_IPS, COLO_MAP, CIDR_SOURCE_URLS } from './config.js';
 import { verifyAdmin, getTokenConfig } from './auth.js';
-import { getStoredIPs, getStoredSpeedIPs } from './ip.js';
+import { getStoredIPs, getStoredSpeedIPs, getStoredBrowserIPs } from './ip.js';
 
 export async function serveHTML(env, request) {
     const isLoggedIn = await verifyAdmin(request, env);
@@ -12,8 +12,14 @@ export async function serveHTML(env, request) {
     let fastIPs = [];
     if (isLoggedIn) {
         data = await getStoredIPs(env);
-        const speedData = await getStoredSpeedIPs(env);
-        fastIPs = speedData.fastIPs || [];
+        // 優先載入包含下載速度資訊的本機測速資料，若無則回退至後端優選
+        const browserData = await getStoredBrowserIPs(env);
+        if (browserData.fastIPs && browserData.fastIPs.length > 0) {
+            fastIPs = browserData.fastIPs;
+        } else {
+            const speedData = await getStoredSpeedIPs(env);
+            fastIPs = speedData.fastIPs || [];
+        }
     }
     
     let sessionId = null;
@@ -29,52 +35,45 @@ export async function serveHTML(env, request) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cloudflare 優選 IP 測速平台 (${VERSION})</title>
     <style>
-        /* 專業級 Zinc & Obsidian 黑曜石與鋅灰配色變數設定 */
         :root { 
-            --primary: #4f46e5;         /* 靛藍專注色 */
+            --primary: #4f46e5;
             --primary-hover: #4338ca;
-            --bg-main: #fcfcfd;         /* 極簡灰白 */
-            --bg-card: #ffffff;         /* 邊界卡片 */
-            --bg-inner: #f4f4f5;        /* 鋅灰 Zinc-100 */
-            --border: #e4e4e7;          /* 細線邊框 Zinc-200 */
-            --text-main: #09090b;       /* 深黑 Obsidian */
-            --text-sub: #71717a;        /* 灰色 Zinc-500 */
-            --radius: 12px;             /* 統一圓角弧度 */
+            --bg-main: #fcfcfd;
+            --bg-card: #ffffff;
+            --bg-inner: #f4f4f5;
+            --border: #e4e4e7;
+            --text-main: #09090b;
+            --text-sub: #71717a;
+            --radius: 12px;
         }
         
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; line-height: 1.5; background: var(--bg-main); color: var(--text-main); padding: 24px; transition: background 0.3s, color 0.3s; -webkit-font-smoothing: antialiased; }
         .container { max-width: 1280px; margin: 0 auto; }
         
-        /* 頂部標頭 - 極簡風格 */
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
         .header-content h1 { font-size: 1.5rem; color: var(--text-main); font-weight: 800; letter-spacing: -0.03em; }
         .header-content p { font-size: 0.8rem; color: var(--text-sub); margin-top: 4px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; }
         .social-link { padding: 6px 14px; border: 1px solid var(--border); border-radius: 8px; text-decoration: none; color: var(--text-sub); background: var(--bg-card); font-size: 0.8rem; font-weight: 600; transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .social-link:hover { color: var(--primary); border-color: var(--primary); background: var(--bg-main); }
 
-        /* 卡片容器 - 扁平輕陰影 */
         .card { background: var(--bg-card); border-radius: var(--radius); padding: 28px; margin-bottom: 24px; border: 1px solid var(--border); box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.01); }
         .card h2 { font-size: 1.05rem; color: var(--text-main); margin-bottom: 20px; display: flex; align-items: center; gap: 8px; font-weight: 700; letter-spacing: -0.02em; }
         
-        /* 雙欄式黃金分割排版 (Split-Pane Grid) */
-        .dashboard-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 24px; align-items: start; }
+        .dashboard-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 24px; align-items: start; }
         @media (max-width: 1024px) { .dashboard-grid { grid-template-columns: 1fr; } }
         
-        /* 數據看板 - 工整左對齊監控版面 */
         .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
         .stat { background: var(--bg-card); padding: 16px 20px; border-radius: var(--radius); border: 1px solid var(--border); text-align: left; display: flex; flex-direction: column; justify-content: space-between; }
         .stat:hover { border-color: var(--text-sub); }
         .stat-label { font-size: 0.725rem; color: var(--text-sub); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 6px; }
         .stat-value { font-size: 1.6rem; font-weight: 800; color: var(--text-main); letter-spacing: -0.04em; font-family: monospace; }
         
-        /* 按鈕群組與基礎按鈕樣式 */
         .button-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
         .button { padding: 8px 16px; border: 1px solid transparent; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); background: var(--primary); color: white; display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; text-decoration: none; height: 38px; }
         .button:hover { background: var(--primary-hover); transform: translateY(-1px); }
         .button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
         
-        /* 高級半透明色調按鈕 (Tinted / Ghost Buttons) */
         .button-success { background: rgba(16, 185, 129, 0.08); color: #059669; border: 1px solid rgba(16, 185, 129, 0.15); } 
         .button-success:hover { background: rgba(16, 185, 129, 0.12); border-color: #059669; }
         
@@ -90,23 +89,20 @@ export async function serveHTML(env, request) {
         .button-warning { background: rgba(245, 158, 11, 0.08); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.15); }
         .button-warning:hover { background: rgba(245, 158, 11, 0.12); border-color: #d97706; }
 
-        /* 支援端口資訊標籤 */
         .port-box { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
         .port-tag { padding: 4px 10px; border-radius: 6px; font-family: monospace; font-size: 0.85rem; border: 1px solid transparent; font-weight: 700; }
         .tag-http { background: #fef2f2; color: #991b1b; border-color: #fee2e2; } 
         .tag-https { background: #f0f9ff; color: #075985; border-color: #e0f2fe; }
 
-        /* 表格化優選列表設計 */
-        .ip-table-header { display: grid; grid-template-columns: 130px 1fr 70px 60px; padding: 10px 20px; font-size: 0.725rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--border); border-bottom: none; background: var(--bg-inner); border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
+        /* 五欄式佈局：機房 | IP 位址 | 延遲 | 速度 | 操作 */
+        .ip-table-header { display: grid; grid-template-columns: 110px 1fr 65px 75px 50px; padding: 10px 16px; font-size: 0.725rem; font-weight: 700; color: var(--text-sub); text-transform: uppercase; letter-spacing: 0.08em; border: 1px solid var(--border); border-bottom: none; background: var(--bg-inner); border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
         .ip-list { border: 1px solid var(--border); border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); overflow: hidden; }
-        .ip-item { display: grid; grid-template-columns: 130px 1fr 70px 60px; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s ease; }
+        .ip-item { display: grid; grid-template-columns: 110px 1fr 65px 75px 50px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s ease; }
         .ip-item:hover { background: var(--bg-inner); }
         .ip-item:last-child { border-bottom: none; }
         
-        /* 利用 display: contents 讓子節點完全融入 Grid 中對齊 */
         .ip-info { display: contents; }
         
-        /* 移除底框，改為純文字並靠左對齊 */
         .colo-badge { 
             font-size: 0.8rem; 
             padding: 0; 
@@ -122,14 +118,13 @@ export async function serveHTML(env, request) {
             text-overflow: ellipsis; 
             letter-spacing: 0.02em; 
         }
-        .ip-address { font-family: monospace; font-weight: 700; font-size: 0.9rem; color: var(--text-main); }
-        .speed-result { font-size: 0.75rem; padding: 3px 10px; border-radius: 6px; background: var(--bg-inner); max-width: 65px; text-align: center; font-weight: 700; border: 1px solid var(--border); color: var(--text-sub); }
+        .ip-address { font-family: monospace; font-weight: 700; font-size: 0.875rem; color: var(--text-main); }
+        .speed-result { font-size: 0.725rem; padding: 2px 6px; border-radius: 6px; background: var(--bg-inner); text-align: center; font-weight: 700; border: 1px solid var(--border); color: var(--text-sub); white-space: nowrap; }
         .speed-fast-bg { background: rgba(16, 185, 129, 0.08); color: #065f46; border-color: rgba(16, 185, 129, 0.15); } 
         
-        .small-btn { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-main); font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: .15s; }
+        .small-btn { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-main); font-size: 0.725rem; font-weight: 600; cursor: pointer; transition: .15s; }
         .small-btn:hover { background: var(--bg-inner); border-color: var(--text-sub); }
 
-        /* 下拉選單與防消失感知橋樑 */
         .dropdown { position: relative; display: inline-block; }
         .dropdown-content { 
             display: none; 
@@ -158,7 +153,6 @@ export async function serveHTML(env, request) {
         .dropdown-content a:first-child { border-top-left-radius: var(--radius); border-top-right-radius: var(--radius); }
         .dropdown-content a:last-child { border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); border-bottom: none; }
 
-        /* 終端視窗 */
         .terminal-window { margin-top: 24px; border-radius: var(--radius); border: 1px solid #27272a; overflow: hidden; background: #09090b; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
         .terminal-header { background: #18181b; padding: 10px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #27272a; }
         .terminal-dots { display: flex; gap: 6px; }
@@ -174,7 +168,6 @@ export async function serveHTML(env, request) {
         .log-error { color: #f87171; }
         .log-info { color: #34d399; }
 
-        /* 彈窗設計 */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(9, 9, 11, 0.4); backdrop-filter: blur(4px); z-index: 1000; justify-content: center; align-items: center; }
         .modal-content { background: var(--bg-card); color: var(--text-main); padding: 32px; border-radius: var(--radius); width: 90%; max-width: 400px; border: 1px solid var(--border); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05), 0 10px 10px -5px rgba(0,0,0,0.02); }
         .modal h3 { font-size: 1.1rem; margin-bottom: 16px; font-weight: 700; letter-spacing: -0.02em; }
@@ -182,7 +175,6 @@ export async function serveHTML(env, request) {
         .lock-input, .modal-input { width: 100%; padding: 10px 14px; margin: 12px 0; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem; outline: none; background: var(--bg-card); color: var(--text-main); transition: .2s; }
         .lock-input:focus, .modal-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1); }
         
-        /* 鎖定與管理標章 */
         .admin-indicator { position: fixed; top: 24px; right: 24px; z-index: 900; }
         .admin-badge { background: #10b981; color: white; padding: 6px 14px; border-radius: 9999px; font-size: 0.775rem; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15); transition: .2s; }
         .admin-badge:hover { transform: scale(1.02); }
@@ -190,7 +182,6 @@ export async function serveHTML(env, request) {
         .progress-bar { height: 4px; background: var(--border); border-radius: 9999px; overflow: hidden; margin: 16px 0 12px 0; display: none; }
         .progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s; }
 
-        /* 手機與行動裝置深度適配 */
         @media (max-width: 768px) {
             body { padding: 16px 12px; }
             .header { flex-direction: column; align-items: flex-start; gap: 12px; padding-bottom: 16px; margin-bottom: 20px; }
@@ -203,24 +194,23 @@ export async function serveHTML(env, request) {
             .button { width: 100%; justify-content: center; }
             .dropdown { width: 100%; display: block; }
             .dropdown-content { width: 100%; position: absolute; z-index: 10; }
-            .ip-table-header { grid-template-columns: 115px 1fr 65px 50px; padding: 8px 12px; font-size: 0.7rem; }
-            .ip-item { grid-template-columns: 115px 1fr 65px 50px; padding: 10px 12px; }
-            .ip-address { font-size: 0.8rem; }
+            .ip-table-header { grid-template-columns: 85px 1fr 50px 60px 45px; padding: 8px 10px; font-size: 0.675rem; }
+            .ip-item { grid-template-columns: 85px 1fr 50px 60px 45px; padding: 10px 10px; }
+            .ip-address { font-size: 0.775rem; }
             .colo-badge { font-size: 0.725rem; }
-            .speed-result { min-width: 55px; font-size: 0.675rem; padding: 2px 6px; }
-            .small-btn { padding: 4px 8px; font-size: 0.7rem; }
+            .speed-result { font-size: 0.675rem; padding: 2px 4px; }
+            .small-btn { padding: 4px 6px; font-size: 0.675rem; }
             .log-box { padding: 12px; height: 160px; }
         }
 
-        /* 自然優美的暗黑黑曜石模式 (Adaptive Dark Mode) */
         @media (prefers-color-scheme: dark) {
             :root {
                 --primary: #818cf8;             
                 --primary-hover: #6366f1;
-                --bg-main: #09090b;             /* 黑曜石 Obsidian */
-                --bg-card: #18181b;             /* 深碳黑 Zinc-900 */
+                --bg-main: #09090b;
+                --bg-card: #18181b;
                 --bg-inner: #09090b;            
-                --border: #27272a;              /* 邊框線 Zinc-800 */
+                --border: #27272a;
                 --text-main: #fafafa;           
                 --text-sub: #a1a1aa;            
             }
@@ -252,7 +242,6 @@ export async function serveHTML(env, request) {
         </div>
 
         ${!isLoggedIn ? `
-        <!-- 鎖定畫面 -->
         <div class="card lock-screen" style="text-align: center; padding: 40px 20px;">
             <div style="font-size: 50px; margin-bottom: 10px;">🔒</div>
             <h2 style="justify-content: center;">系統已鎖定</h2>
@@ -268,10 +257,8 @@ export async function serveHTML(env, request) {
             </div>
         </div>
         ` : `
-        <!-- 雙欄式黃金比例工作台 (Golden Split Workspace) -->
         <div class="dashboard-grid">
             
-            <!-- 左欄主區塊：主控面板、支援端口、與日誌終端 -->
             <div class="pane-main">
                 <div class="card">
                     <h2>📊 控制中心</h2>
@@ -293,9 +280,8 @@ export async function serveHTML(env, request) {
                     
                     <div class="button-group">
                         <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
-                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 瀏覽器測速</button>
+                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 瀏覽器二階段測速</button>
                         
-                        <!-- 整合後的：線上查看與數據匯出選單 -->
                         <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
                             <div class="dropdown-content">
                                 <a href="/fast-ips.txt" target="_blank">🚀 查看後端優選 IP</a>
@@ -315,7 +301,6 @@ export async function serveHTML(env, request) {
                         <button class="button button-slate" onclick="openSourcesModal()">⚙️ 來源管理</button>
                     </div>
                     
-                    <!-- 擬真開發者終端盒 (Developer Terminal Console Container) -->
                     <div class="terminal-window">
                         <div class="terminal-header">
                             <div class="terminal-dots">
@@ -330,7 +315,6 @@ export async function serveHTML(env, request) {
                     </div>
                 </div>
 
-                <!-- 支援端口資訊 (已由右側移至左欄下方，使版面配置更均衡) -->
                 <div class="card">
                     <h2>📡 支援端口資訊</h2>
                     <div style="margin-bottom: 16px;">
@@ -344,10 +328,7 @@ export async function serveHTML(env, request) {
                 </div>
             </div>
             
-            <!-- 右欄側邊區塊：單獨承載數據表格，享有完整高度 -->
             <div class="pane-side">
-                
-                <!-- 優選 IP 表格化名單 -->
                 <div class="card" style="padding-bottom: 12px;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                         <h2>🏆 優選 IP 列表</h2>
@@ -357,35 +338,35 @@ export async function serveHTML(env, request) {
                     <div class="progress-bar" id="progress"><div class="progress-fill" id="progress-fill"></div></div>
                     <div id="status-text" style="text-align:center; font-size:0.8rem; color:var(--text-sub); margin-bottom:10px;"></div>
                     
-                    <!-- 表頭 -->
+                    <!-- 五欄表頭：機房 | IP 位址 | 延遲 | 速度 | 操作 -->
                     <div class="ip-table-header">
                         <span>機房</span>
                         <span>IP 位址</span>
                         <span>延遲</span>
+                        <span>速度</span>
                         <span style="text-align:right;">操作</span>
                     </div>
                     <div class="ip-list" id="ip-list">
                         ${fastIPs.length > 0 ? fastIPs.map(item => {
-                            const speedClass = item.latency < 200 ? 'speed-fast-bg' : '';
+                            const speedLatClass = item.latency < 200 ? 'speed-fast-bg' : '';
+                            const speedDownClass = item.speed && item.speed >= 10 ? 'speed-fast-bg' : '';
+                            const speedDisplay = item.speed ? `${item.speed} MB/s` : '-';
                             const colo = item.colo || 'UNK';
                             const cnName = COLO_MAP[colo] ? ` (${COLO_MAP[colo]})` : '';
                             const coloDisplay = colo + cnName;
                             const coloStyle =['HKG', 'SJC', 'LAX', 'TPE'].includes(colo) ? 'color: #10b981; font-weight: 700;' : '';
-                            return `<div class="ip-item" data-ip="${item.ip}"><div class="ip-info"><span class="colo-badge" style="${coloStyle}">${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result ${speedClass}">${item.latency}ms</span></div><button class="small-btn" onclick="copyIP('${item.ip}')">複製</button></div>`;
-                        }).join('') : '<p style="text-align:center; padding:30px; color:#a1a1aa;">暫無數據，請點擊更新</p>'}
+                            return `<div class="ip-item" data-ip="${item.ip}"><div class="ip-info"><span class="colo-badge" style="${coloStyle}">${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result ${speedLatClass}">${item.latency}ms</span><span class="speed-result ${speedDownClass}">${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('${item.ip}')">複製</button></div>`;
+                        }).join('') : '<p style="text-align:center; padding:30px; color:#a1a1aa;">暫無數據，請點擊測速</p>'}
                     </div>
                 </div>
-                
             </div>
             
         </div>
         `}
     </div>
 
-    <!-- Modals -->
     <div class="modal" id="login-modal"><div class="modal-content"><h3>🔐 管理員登入</h3><input type="password" id="admin-pass" class="modal-input" placeholder="輸入密碼"><div style="text-align:right; margin-top: 10px;"><button class="button" onclick="loginModal()">登入</button></div></div></div>
 
-    <!-- 自訂來源網址管理彈窗 -->
     <div class="modal" id="sources-modal">
         <div class="modal-content" style="max-width: 550px; width: 95%;">
             <h3>⚙️ IP 來源網址管理</h3>
@@ -407,7 +388,7 @@ export async function serveHTML(env, request) {
         let isLoggedIn = ${isLoggedIn};
         let tokenConfig = ${tokenConfig ? JSON.stringify(tokenConfig) : 'null'};
         const MAX_TEST = ${BROWSER_TEST_MAX_IPS};
-        const DISPLAY_COUNT = ${FAST_IP_COUNT};
+        const DISPLAY_COUNT = ${FAST_IP_COUNT}; // 20 個精選節點
 
         document.addEventListener('DOMContentLoaded', function() {
             document.addEventListener('keydown', function(e) {
@@ -460,7 +441,6 @@ export async function serveHTML(env, request) {
             }
         });
 
-        // 動態關閉下拉管理選單
         document.addEventListener('click', function() {
             const dropdown = document.getElementById('admin-dropdown');
             if (dropdown) dropdown.style.display = 'none';
@@ -614,50 +594,124 @@ export async function serveHTML(env, request) {
             btn.disabled = false; btn.innerText = '🔄 立即更新庫';
         }
 
+        // ==================== 二階段測速核心引擎 ====================
         async function startSpeedTest() {
             const allIpElements = document.querySelectorAll('.ip-item');
-            let allIps =[];
-            try { const res = await api('/raw'); allIps = res.ips && res.ips.length ? res.ips :[]; } catch(e) {}
+            let allIps = [];
+            try { const res = await api('/raw'); allIps = res.ips && res.ips.length ? res.ips : []; } catch(e) {}
             if(!allIps.length) allIps = Array.from(allIpElements).map(el => el.dataset.ip);
-            if(!allIps.length) return addLog('❌ 無 IP', 'error');
+            if(!allIps.length) return addLog('❌ 無可用 IP 進行測速', 'error');
 
-            clearLog(); addLog(\`🚀 測速開始 (\${allIps.length} IPs)\`, 'info');
+            clearLog(); 
+            const speedtestBtn = document.getElementById('speedtest-btn');
+            speedtestBtn.disabled = true;
+
+            // 洗牌隨機抽取
             for (let i = allIps.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [allIps[i], allIps[j]] = [allIps[j], allIps[i]]; }
             const targets = allIps.slice(0, MAX_TEST);
             
             document.getElementById('progress').style.display = 'block';
-            let count = 0, results =[];
+            const progressFill = document.getElementById('progress-fill');
+            const statusText = document.getElementById('status-text');
+
+            // ----------------- 階段 1：延遲初篩 (Ping 測試) -----------------
+            addLog(\`🚀 [階段 1/2] 延遲初篩開始 (測試 \${targets.length} 個節點)...\`, 'info');
+            let pingResults = [];
+            let count = 0;
+
             for(const ip of targets) {
-                document.getElementById('status-text').innerText = \`測試 \${ip} (\${count+1}/\${targets.length})\`;
+                statusText.innerText = \`階段 1/2: 測試延遲 \${ip} (\${count+1}/\${targets.length})\`;
                 try {
                     const start = performance.now();
-                    const res = await fetch(\`/speedtest?ip=\${ip}\`);
+                    const res = await fetch(\`/speedtest?ip=\${ip}&bytes=1000\`);
                     const data = await res.json();
                     const lat = Math.round(performance.now() - start);
                     if(data.success) {
-                        addLog(\`✅ [\${data.colo}] \${ip} - \${lat}ms\`, lat<200?'info':'normal');
-                        results.push({ip, latency: lat, colo: data.colo || 'UNK'});
+                        pingResults.push({ ip, latency: lat, colo: data.colo || 'UNK' });
                     }
                 } catch(e) {}
                 count++;
-                document.getElementById('progress-fill').style.width = (count/targets.length*100) + '%';
-                await new Promise(r => setTimeout(r, 50));
+                progressFill.style.width = ((count / targets.length) * 50) + '%';
+                await new Promise(r => setTimeout(r, 40));
             }
-            if(results.length) {
-                results.sort((a,b) => a.latency - b.latency);
-                const topResults = results.slice(0, DISPLAY_COUNT);
-                let newHtml = '';
-                topResults.forEach(item => {
-                    const colo = item.colo || 'UNK';
-                    const cnName = COLO_MAP[colo] ? \` (\${COLO_MAP[colo]})\` : '';
-                    const coloDisplay = colo + cnName;
-                    const coloStyle =['HKG','SJC','LAX','TPE'].includes(item.colo) ? 'color:#10b981;font-weight:700;' : '';
-                    newHtml += \`<div class="ip-item" data-ip="\${item.ip}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">\${item.ip}</span><span class="speed-result">\${item.latency}ms</span></div><button class="small-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
-                });
-                document.getElementById('ip-list').innerHTML = newHtml;
-                try { await api('/upload-results', 'POST', { fastIPs: topResults }); addLog('✅ 結果已上傳'); } catch(e){}
+
+            if(!pingResults.length) {
+                statusText.innerText = '初篩失敗，無可用節點';
+                progressFill.style.width = '0%';
+                speedtestBtn.disabled = false;
+                return addLog('❌ 階段 1 初篩失敗：所有節點均無響應', 'error');
             }
-            document.getElementById('progress').style.display = 'none';
+
+            // 依延遲排序，選出前 20 名進入二階段頻寬測速
+            pingResults.sort((a,b) => a.latency - b.latency);
+            const topCandidates = pingResults.slice(0, DISPLAY_COUNT);
+            addLog(\`✅ [階段 1/2] 初篩完成，已挑選延遲最低的 \${topCandidates.length} 個候選節點進入下載測速\`, 'info');
+
+            // ----------------- 階段 2：頻寬下載測速 (2MB 下載) -----------------
+            addLog(\`⚡ [階段 2/2] 開始測量下載速度 (每個節點下載 2MB)...\`, 'info');
+            let finalResults = [];
+            const DOWNLOAD_BYTES = 2000000; // 2MB
+            let testIndex = 0;
+
+            for(const item of topCandidates) {
+                testIndex++;
+                statusText.innerText = \`階段 2/2: 下載測速 \${item.ip} (\${testIndex}/\${topCandidates.length})\`;
+                let speedMBs = 0;
+
+                try {
+                    const start = performance.now();
+                    const res = await fetch(\`/speedtest?ip=\${item.ip}&bytes=\${DOWNLOAD_BYTES}\`);
+                    if(res.ok) {
+                        const blob = await res.blob();
+                        const durationSec = (performance.now() - start) / 1000;
+                        if(durationSec > 0 && blob.size > 0) {
+                            speedMBs = parseFloat(((blob.size / (1024 * 1024)) / durationSec).toFixed(2));
+                        }
+                    }
+                } catch(e) {
+                    speedMBs = 0;
+                }
+
+                item.speed = speedMBs;
+                finalResults.push(item);
+                addLog(\`⚡ [\${item.colo}] \${item.ip} - \${item.latency}ms | 下載: \${item.speed} MB/s\`, item.speed >= 10 ? 'info' : 'normal');
+
+                progressFill.style.width = (50 + (testIndex / topCandidates.length) * 50) + '%';
+                await new Promise(r => setTimeout(r, 60));
+            }
+
+            // ----------------- 依下載速度排序（由大到小） -----------------
+            finalResults.sort((a, b) => {
+                if (b.speed !== a.speed) return b.speed - a.speed;
+                return a.latency - b.latency;
+            });
+
+            // 更新網頁表格
+            let newHtml = '';
+            finalResults.forEach(item => {
+                const colo = item.colo || 'UNK';
+                const cnName = COLO_MAP[colo] ? \` (\${COLO_MAP[colo]})\` : '';
+                const coloDisplay = colo + cnName;
+                const coloStyle = ['HKG','SJC','LAX','TPE'].includes(item.colo) ? 'color:#10b981;font-weight:700;' : '';
+                const speedLatClass = item.latency < 200 ? 'speed-fast-bg' : '';
+                const speedDownClass = item.speed >= 10 ? 'speed-fast-bg' : '';
+                const speedDisplay = item.speed ? \`\${item.speed} MB/s\` : '-';
+                newHtml += \`<div class="ip-item" data-ip="\${item.ip}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">\${item.ip}</span><span class="speed-result \${speedLatClass}">\${item.latency}ms</span><span class="speed-result \${speedDownClass}">\${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
+            });
+            document.getElementById('ip-list').innerHTML = newHtml;
+
+            // 上傳並持久化保存至 KV
+            try { 
+                await api('/upload-results', 'POST', { fastIPs: finalResults }); 
+                addLog('✅ 優選結果（含下載頻寬數據）已成功同步至 KV 儲存庫'); 
+            } catch(e) {
+                addLog('⚠️ 結果上傳失敗: ' + e.message, 'error');
+            }
+
+            statusText.innerText = '測速完成 (已依下載頻寬降冪排序)';
+            progressFill.style.width = '100%';
+            setTimeout(() => { document.getElementById('progress').style.display = 'none'; }, 2000);
+            speedtestBtn.disabled = false;
         }
 
         function copyApiUrl(type) {
