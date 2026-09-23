@@ -1,5 +1,22 @@
 # Complete Project Codebase
-Generated on: Mon Jun 29 10:17:45 UTC 2026
+Generated on: Wed Sep 23 10:30:21 UTC 2026
+
+## File: wrangler.toml
+````toml
+name = "cf-worker-bestip"
+main = "src/index.js"
+compatibility_date = "2024-03-01"
+
+# KV 命名空間綁定
+[[kv_namespaces]]
+binding = "IP_STORAGE"
+id = "KV_ID_PLACEHOLDER"
+
+# ----------------- 每 6 小時定時觸發設定 -----------------
+[triggers]
+crons = ["0 */6 * * *"]  # 每 6 小時整點自動執行一次 (非常安全且節省額度的設定)
+
+````
 
 ## File: README.md
 ````md
@@ -161,6 +178,107 @@ jobs:
    * **Value**：您的自訂管理員密碼
    * **類型**：請務必點選 **「Encrypt」**（加密成密鑰，隱藏明文顯示） [3]。
 4. 點選右下角 **「Save and deploy」**（儲存並部署） [3]。
+
+````
+
+## File: src/auth.js
+````js
+// src/auth.js
+import { jsonResponse } from './utils.js';
+
+export function generateToken() { 
+    let r = ''; 
+    const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; 
+    for(let i=0; i<32; i++) r += c.charAt(Math.floor(Math.random() * c.length)); 
+    return r; 
+}
+
+export async function getTokenConfig(env) { 
+    try { 
+        return JSON.parse(await env.IP_STORAGE.get('token_config')); 
+    } catch { 
+        return null; 
+    } 
+}
+
+export async function verifyAdmin(request, env) {
+    if (!env.ADMIN_PASSWORD) return true;
+    try {
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) { 
+            if (await env.IP_STORAGE.get(`session_${authHeader.slice(7)}`)) return true; 
+        }
+        const url = new URL(request.url);
+        if (url.searchParams.get('session') && await env.IP_STORAGE.get(`session_${url.searchParams.get('session')}`)) return true;
+        
+        const tc = await getTokenConfig(env);
+        if (tc) {
+            if (!tc.neverExpire && new Date(tc.expires) < new Date()) return false;
+            const t = url.searchParams.get('token') || (authHeader && authHeader.startsWith('Token ') ? authHeader.slice(6) : null);
+            if (t === tc.token) { 
+                tc.lastUsed = new Date().toISOString(); 
+                await env.IP_STORAGE.put('token_config', JSON.stringify(tc)); 
+                return true; 
+            }
+        }
+        return false;
+    } catch { 
+        return false; 
+    }
+}
+
+export async function handleAdminLogin(request, env) {
+    if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
+    try {
+        const { password } = await request.json();
+        if (!env.ADMIN_PASSWORD) return jsonResponse({ success: false, error: '未設置 ADMIN_PASSWORD' }, 400);
+        if (password === env.ADMIN_PASSWORD) {
+            let tokenConfig = await getTokenConfig(env);
+            if (!tokenConfig) {
+                tokenConfig = { token: generateToken(), expires: new Date(Date.now() + 30*24*60*60*1000).toISOString(), createdAt: new Date().toISOString(), lastUsed: null };
+                await env.IP_STORAGE.put('token_config', JSON.stringify(tokenConfig));
+            }
+            const sessionId = generateToken();
+            await env.IP_STORAGE.put(`session_${sessionId}`, JSON.stringify({ loggedIn: true, createdAt: new Date().toISOString() }), { expirationTtl: 86400 });
+            return jsonResponse({ success: true, sessionId, tokenConfig, message: '登入成功' });
+        } else return jsonResponse({ success: false, error: '密碼錯誤' }, 401);
+    } catch (e) { return jsonResponse({ error: e.message }, 500); }
+}
+
+export async function handleAdminToken(request, env) {
+    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
+    if (request.method === 'GET') return jsonResponse({ tokenConfig: await getTokenConfig(env) });
+    if (request.method === 'POST') {
+        const { token, expiresDays, neverExpire } = await request.json();
+        let newToken = token ? token.trim() : generateToken();
+        let expiresDate = neverExpire ? new Date(Date.now() + 100*365*24*60*60*1000).toISOString() : new Date(Date.now() + expiresDays*24*60*60*1000).toISOString();
+        const config = { token: newToken, expires: expiresDate, createdAt: new Date().toISOString(), lastUsed: null, neverExpire: neverExpire||false };
+        await env.IP_STORAGE.put('token_config', JSON.stringify(config));
+        return jsonResponse({ success: true, tokenConfig: config, message: 'Token更新成功' });
+    }
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+}
+
+export async function handleAdminStatus(env) { 
+    return jsonResponse({ hasAdminPassword: !!env.ADMIN_PASSWORD, hasToken: !!await getTokenConfig(env), tokenConfig: await getTokenConfig(env) }); 
+}
+
+export async function handleAdminLogout(request, env) { 
+    try {
+        const authHeader = request.headers.get('Authorization');
+        let sessionId = null;
+        if (authHeader && authHeader.startsWith('Bearer ')) { 
+            sessionId = authHeader.slice(7);
+        } else {
+            const url = new URL(request.url);
+            sessionId = url.searchParams.get('session');
+        }
+        if (sessionId) {
+            await env.IP_STORAGE.delete(`session_${sessionId}`);
+        }
+    } catch (e) {}
+    return jsonResponse({ success: true }); 
+}
 
 ````
 
@@ -889,57 +1007,274 @@ export async function serveHTML(env, request) {
 
 ````
 
-## File: src/utils.js
+## File: src/ip.js
 ````js
-// src/utils.js
+// src/ip.js
+import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT } from './config.js';
+import { ipToNum, numToIp, isValidIPv4, jsonResponse, isCloudflareIP } from './utils.js';
+import { verifyAdmin } from './auth.js';
 
-export function ipToNum(ip) { 
-    return ip.split('.').reduce((a, b) => a * 256 + parseInt(b), 0); 
-}
-
-export function numToIp(n) { 
-    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'); 
-}
-
-export function isValidIPv4(ip) { 
-    return /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ip); 
-}
-
-export function jsonResponse(data, status = 200) { 
-    return new Response(JSON.stringify(data), { 
-        status, 
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } 
-    }); 
-}
-
-export function handleCORS() { 
-    return new Response(null, { 
-        headers: { 
-            'Access-Control-Allow-Origin': '*', 
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization' 
-        } 
-    }); 
-}
-
-// 新增：檢查某個 IP 是否落在特定的 CIDR 網段內
-export function isIpInCidr(ip, cidr) {
+// 獲取動態來源（優先讀取 KV，若無則讀取 config.js 預設名單）
+export async function getCidrSources(env) {
     try {
-        const [cidrIp, maskStr] = cidr.split('/');
-        const maskBits = parseInt(maskStr || '32');
-        const start = ipToNum(cidrIp);
-        const totalIPs = Math.pow(2, 32 - maskBits);
-        const end = start + totalIPs - 1;
-        const num = ipToNum(ip);
-        return num >= start && num <= end;
-    } catch {
-        return false;
+        const stored = await env.IP_STORAGE.get('cidr_source_urls');
+        if (stored) {
+            return JSON.parse(stored);
+        }
+    } catch {}
+    return CIDR_SOURCE_URLS;
+}
+
+export async function getStoredIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_ips')) || {ips:[]}; } catch { return {ips:[]}; } }
+export async function getStoredSpeedIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
+export async function getStoredBrowserIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('browser_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
+
+export async function updateAllIPs(env) {
+    const urls = await getCidrSources(env);
+    const uniqueIPs = new Set();
+    const results = [];
+    const cidrRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?:\/(?:[0-9]{1,2}))?\b/gi;
+    
+    let officialCidrs = [];
+    try {
+        const cfIpsRes = await fetch('https://api.cloudflare.com/client/v4/ips', {
+            signal: AbortSignal.timeout(5000),
+            headers: { 'User-Agent': 'CF-Worker' }
+        });
+        if (cfIpsRes.ok) {
+            const data = await cfIpsRes.json();
+            if (data.success && data.result && data.result.ipv4_cidrs) {
+                officialCidrs = data.result.ipv4_cidrs;
+            }
+        }
+    } catch (e) {
+        console.error("無法取得 Cloudflare 官方即時 IP 白名單，將起用備用清單:", e.message);
+    }
+
+    if (officialCidrs.length === 0) {
+        officialCidrs = [
+            "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+            "141.101.64.0/18", "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22",
+            "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14",
+            "172.64.0.0/13", "131.0.72.0/22"
+        ];
+    }
+
+    for (const url of urls) {
+        try {
+            const txt = await fetchURLWithTimeout(url);
+            const matches = txt.match(cidrRegex) || [];
+            let count = 0;
+            matches.forEach(m => {
+                if (m.includes('/')) {
+                    expandCIDR(m).forEach(ip => { 
+                        if (isValidIPv4(ip) && isCloudflareIP(ip, officialCidrs)) { 
+                            uniqueIPs.add(ip); 
+                            count++; 
+                        }
+                    });
+                } else if (isValidIPv4(m) && isCloudflareIP(m, officialCidrs)) { 
+                    uniqueIPs.add(m); 
+                    count++; 
+                }
+            });
+            results.push({ name: url, status: 'success', count });
+        } catch(e) { results.push({ name: url, status: 'error', error: e.message }); }
+    }
+    return { uniqueIPs: Array.from(uniqueIPs).sort((a,b) => ipToNum(a)-ipToNum(b)), results };
+}
+
+export function expandCIDR(cidr, maxSample = 10) { 
+    try { 
+        const [ip, m] = cidr.split('/'); 
+        const mask = parseInt(m); 
+        if(isNaN(mask)||mask>32) return [ip]; 
+        if(mask===32) return [ip]; 
+        const start = ipToNum(ip); 
+        const total = Math.pow(2, 32-mask); 
+        const res = new Set(); 
+        const sampleSize = total > maxSample ? maxSample : total; 
+        
+        if(total <= maxSample) {
+            for(let i=0; i<total; i++) {
+                res.add(numToIp(start + i));
+            }
+        } else {
+            while (res.size < sampleSize) {
+                const randomOffset = Math.floor(Math.random() * total);
+                res.add(numToIp(start + randomOffset));
+            }
+        }
+        return Array.from(res); 
+    } catch { return []; } 
+}
+
+export async function autoSpeedTestAndStore(env, ips, limit = AUTO_TEST_MAX_IPS) {
+    if (!ips || !ips.length) return null;
+    let randomIPs = [...ips];
+    for (let i = randomIPs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [randomIPs[i], randomIPs[j]] = [randomIPs[j], randomIPs[i]]; }
+    
+    const safeLimit = Math.min(limit, SAFE_SUBREQUEST_LIMIT);
+    const targets = randomIPs.slice(0, safeLimit);
+    const results = [];
+    const BATCH = 5;
+    for (let i = 0; i < targets.length; i += BATCH) {
+      const batch = targets.slice(i, i + BATCH);
+      const promises = batch.map(ip => testIPSpeed(ip));
+      const outcomes = await Promise.allSettled(promises);
+      for (const out of outcomes) { if (out.status === 'fulfilled' && out.value && out.value.success) results.push({ ip: out.value.ip, latency: Math.round(out.value.latency), colo: out.value.colo }); }
+      if (i + BATCH < targets.length) await new Promise(r => setTimeout(r, 200));
+    }
+    results.sort((a, b) => a.latency - b.latency);
+    const fastIPs = results.slice(0, FAST_IP_COUNT);
+    await env.IP_STORAGE.put('cloudflare_fast_ips', JSON.stringify({ fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'backend_auto' }));
+}
+
+// 支援一階段 1KB 延遲測試與二階段 2MB 頻寬下載串流
+export async function handleSpeedTest(request, env) {
+    const url = new URL(request.url);
+    const ip = url.searchParams.get('ip');
+    const bytes = parseInt(url.searchParams.get('bytes') || '1000', 10);
+    if (!ip) return jsonResponse({ error: 'IP required' }, 400);
+
+    try {
+      const testUrl = `https://speed.cloudflare.com/__down?bytes=${bytes}`;
+      const timeout = bytes > 1000 ? 7000 : 2500;
+      const response = await fetch(testUrl, { 
+        headers: { 'Host': 'speed.cloudflare.com' }, 
+        cf: { resolveOverride: ip }, 
+        signal: AbortSignal.timeout(timeout)
+      });
+      if (!response.ok) throw new Error(response.statusText);
+
+      // 第一階段延遲測試（小資料量 1KB）
+      if (bytes <= 1000) {
+        await response.text(); 
+        const ray = response.headers.get('cf-ray');
+        return jsonResponse({ success: true, ip, colo: ray ? ray.split('-').pop() : null, time: new Date() });
+      }
+
+      // 第二階段頻寬測試（大資料量 2MB）：直接串流回傳 Body 讓前端計時測速
+      const ray = response.headers.get('cf-ray');
+      return new Response(response.body, {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers': 'CF-Ray',
+          'CF-Ray': ray || ''
+        }
+      });
+    } catch (error) { 
+      return jsonResponse({ success: false, ip, error: error.message }, 200); 
     }
 }
 
-// 新增：檢查 IP 是否屬於 Cloudflare 官方 IP 集
-export function isCloudflareIP(ip, cfCidrs) {
-    return cfCidrs.some(cidr => isIpInCidr(ip, cidr));
+export async function testIPSpeed(ip) {
+    try {
+      const start = Date.now();
+      const res = await fetch(`https://speed.cloudflare.com/__down?bytes=1000`, { 
+          headers: { 'Host': 'speed.cloudflare.com' }, 
+          cf: { resolveOverride: ip }, 
+          signal: AbortSignal.timeout(2500)
+      });
+      if (!res.ok) throw new Error('HTTP Error: ' + res.status);
+      await res.text();
+      const ray = res.headers.get('cf-ray');
+      return { success: true, ip, latency: Date.now() - start, colo: ray ? ray.split('-').pop() : null };
+    } catch (e) { return { success: false, ip, error: e.message }; }
+}
+
+export async function handleUploadResults(env, request) {
+    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
+    try {
+        const { fastIPs } = await request.json();
+        if (!fastIPs || !Array.isArray(fastIPs)) return jsonResponse({ error: '無效數據' }, 400);
+        await env.IP_STORAGE.put('browser_fast_ips', JSON.stringify({
+            fastIPs: fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'browser_upload'
+        }));
+        return jsonResponse({ success: true });
+    } catch (e) { return jsonResponse({ error: e.message }, 500); }
+}
+
+export async function handleGetFastIPsText(env, request) {
+    const url = new URL(request.url);
+    const format = url.searchParams.get('format');
+    const data = await getStoredSpeedIPs(env);
+    const list = data.fastIPs || [];
+    let txt = '';
+    if (format === 'ip') {
+        txt = list.map(i => i.ip).join('\n');
+    } else {
+        txt = list.map(i => {
+            const cn = COLO_MAP[i.colo] ? `(${COLO_MAP[i.colo]})` : '';
+            return `${i.ip}#${i.colo}${cn}:${i.latency}ms`;
+        }).join('\n');
+    }
+    return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+}
+
+// 支援在 /browser-ips.txt 輸出下載傳輸速度
+export async function handleGetBrowserIPsText(env, request) {
+    const url = new URL(request.url);
+    const format = url.searchParams.get('format');
+    const data = await getStoredBrowserIPs(env);
+    const list = data.fastIPs || [];
+    let txt = '';
+    if (format === 'ip') {
+        txt = list.map(i => i.ip).join('\n');
+    } else {
+        txt = list.map(i => {
+            const cn = COLO_MAP[i.colo] ? `(${COLO_MAP[i.colo]})` : '';
+            const speedStr = i.speed ? ` | ${i.speed} MB/s` : '';
+            return `${i.ip}#${i.colo}${cn}:${i.latency}ms${speedStr}`;
+        }).join('\n');
+    }
+    return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+}
+
+export async function handleGetFastIPs(env, request) { return jsonResponse(await getStoredSpeedIPs(env)); }
+export async function handleGetIPs(env, request) { const d = await getStoredIPs(env); return new Response((d.ips || []).join('\n'), { headers: {'Content-Type': 'text/plain; charset=utf-8'} }); }
+export async function handleRawIPs(env, request) { return jsonResponse(await getStoredIPs(env)); }
+export async function handleItdogData(env, request) { const d = await getStoredSpeedIPs(env); return jsonResponse({ ips: (d.fastIPs||[]).map(i => i.ip) }); }
+
+export async function handleUserIP(request) {
+    const cf = request.cf;
+    const ip = request.headers.get('CF-Connecting-IP');
+    return jsonResponse({
+        ip: ip,
+        country: cf ? cf.country : 'UNK',
+        city: cf ? cf.city : '',
+        asn: cf ? cf.asn : '',
+        colo: cf ? cf.colo : ''
+    });
+}
+
+export async function handleGetCidrSources(env) {
+    const urls = await getCidrSources(env);
+    return jsonResponse({ success: true, urls });
+}
+
+export async function handleSaveCidrSources(env, request) {
+    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
+    try {
+        const { urls } = await request.json();
+        if (!urls || !Array.isArray(urls)) return jsonResponse({ error: '無效數據' }, 400);
+        
+        const cleanedUrls = urls.map(u => u.trim()).filter(u => u.startsWith('http'));
+        await env.IP_STORAGE.put('cidr_source_urls', JSON.stringify(cleanedUrls));
+        return jsonResponse({ success: true, urls: cleanedUrls });
+    } catch (e) {
+        return jsonResponse({ error: e.message }, 500);
+    }
+}
+
+async function fetchURLWithTimeout(url) { 
+    const res = await fetch(url, { 
+        signal: AbortSignal.timeout(8000),
+        headers: {'User-Agent': 'CF-Worker'} 
+    }); 
+    if(!res.ok) throw new Error('HTTP Error: ' + res.status + ' ' + res.statusText); 
+    return await res.text(); 
 }
 
 ````
@@ -1025,107 +1360,6 @@ async function handleUpdate(env, request) {
 
 ````
 
-## File: src/auth.js
-````js
-// src/auth.js
-import { jsonResponse } from './utils.js';
-
-export function generateToken() { 
-    let r = ''; 
-    const c = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'; 
-    for(let i=0; i<32; i++) r += c.charAt(Math.floor(Math.random() * c.length)); 
-    return r; 
-}
-
-export async function getTokenConfig(env) { 
-    try { 
-        return JSON.parse(await env.IP_STORAGE.get('token_config')); 
-    } catch { 
-        return null; 
-    } 
-}
-
-export async function verifyAdmin(request, env) {
-    if (!env.ADMIN_PASSWORD) return true;
-    try {
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader && authHeader.startsWith('Bearer ')) { 
-            if (await env.IP_STORAGE.get(`session_${authHeader.slice(7)}`)) return true; 
-        }
-        const url = new URL(request.url);
-        if (url.searchParams.get('session') && await env.IP_STORAGE.get(`session_${url.searchParams.get('session')}`)) return true;
-        
-        const tc = await getTokenConfig(env);
-        if (tc) {
-            if (!tc.neverExpire && new Date(tc.expires) < new Date()) return false;
-            const t = url.searchParams.get('token') || (authHeader && authHeader.startsWith('Token ') ? authHeader.slice(6) : null);
-            if (t === tc.token) { 
-                tc.lastUsed = new Date().toISOString(); 
-                await env.IP_STORAGE.put('token_config', JSON.stringify(tc)); 
-                return true; 
-            }
-        }
-        return false;
-    } catch { 
-        return false; 
-    }
-}
-
-export async function handleAdminLogin(request, env) {
-    if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405);
-    try {
-        const { password } = await request.json();
-        if (!env.ADMIN_PASSWORD) return jsonResponse({ success: false, error: '未設置 ADMIN_PASSWORD' }, 400);
-        if (password === env.ADMIN_PASSWORD) {
-            let tokenConfig = await getTokenConfig(env);
-            if (!tokenConfig) {
-                tokenConfig = { token: generateToken(), expires: new Date(Date.now() + 30*24*60*60*1000).toISOString(), createdAt: new Date().toISOString(), lastUsed: null };
-                await env.IP_STORAGE.put('token_config', JSON.stringify(tokenConfig));
-            }
-            const sessionId = generateToken();
-            await env.IP_STORAGE.put(`session_${sessionId}`, JSON.stringify({ loggedIn: true, createdAt: new Date().toISOString() }), { expirationTtl: 86400 });
-            return jsonResponse({ success: true, sessionId, tokenConfig, message: '登入成功' });
-        } else return jsonResponse({ success: false, error: '密碼錯誤' }, 401);
-    } catch (e) { return jsonResponse({ error: e.message }, 500); }
-}
-
-export async function handleAdminToken(request, env) {
-    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
-    if (request.method === 'GET') return jsonResponse({ tokenConfig: await getTokenConfig(env) });
-    if (request.method === 'POST') {
-        const { token, expiresDays, neverExpire } = await request.json();
-        let newToken = token ? token.trim() : generateToken();
-        let expiresDate = neverExpire ? new Date(Date.now() + 100*365*24*60*60*1000).toISOString() : new Date(Date.now() + expiresDays*24*60*60*1000).toISOString();
-        const config = { token: newToken, expires: expiresDate, createdAt: new Date().toISOString(), lastUsed: null, neverExpire: neverExpire||false };
-        await env.IP_STORAGE.put('token_config', JSON.stringify(config));
-        return jsonResponse({ success: true, tokenConfig: config, message: 'Token更新成功' });
-    }
-    return jsonResponse({ error: 'Method not allowed' }, 405);
-}
-
-export async function handleAdminStatus(env) { 
-    return jsonResponse({ hasAdminPassword: !!env.ADMIN_PASSWORD, hasToken: !!await getTokenConfig(env), tokenConfig: await getTokenConfig(env) }); 
-}
-
-export async function handleAdminLogout(request, env) { 
-    try {
-        const authHeader = request.headers.get('Authorization');
-        let sessionId = null;
-        if (authHeader && authHeader.startsWith('Bearer ')) { 
-            sessionId = authHeader.slice(7);
-        } else {
-            const url = new URL(request.url);
-            sessionId = url.searchParams.get('session');
-        }
-        if (sessionId) {
-            await env.IP_STORAGE.delete(`session_${sessionId}`);
-        }
-    } catch (e) {}
-    return jsonResponse({ success: true }); 
-}
-
-````
-
 ## File: src/config.js
 ````js
 // src/config.js
@@ -1172,308 +1406,58 @@ export const COLO_MAP = {
 
 ````
 
-## File: src/ip.js
+## File: src/utils.js
 ````js
-// src/ip.js
-import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT } from './config.js';
-import { ipToNum, numToIp, isValidIPv4, jsonResponse, isCloudflareIP } from './utils.js';
-import { verifyAdmin } from './auth.js';
+// src/utils.js
 
-// 獲取動態來源（優先讀取 KV，若無則讀取 config.js 預設名單）
-export async function getCidrSources(env) {
-    try {
-        const stored = await env.IP_STORAGE.get('cidr_source_urls');
-        if (stored) {
-            return JSON.parse(stored);
-        }
-    } catch {}
-    return CIDR_SOURCE_URLS;
+export function ipToNum(ip) { 
+    return ip.split('.').reduce((a, b) => a * 256 + parseInt(b), 0); 
 }
 
-export async function getStoredIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_ips')) || {ips:[]}; } catch { return {ips:[]}; } }
-export async function getStoredSpeedIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
-export async function getStoredBrowserIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('browser_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
-
-export async function updateAllIPs(env) {
-    // 動態獲取訂閱來源網址
-    const urls = await getCidrSources(env);
-    const uniqueIPs = new Set();
-    const results = [];
-    const cidrRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?:\/(?:[0-9]{1,2}))?\b/gi;
-    
-    // === 1. 動態從 Cloudflare 官方 API 獲取最新的安全 IPv4 網段 ===
-    let officialCidrs = [];
-    try {
-        const cfIpsRes = await fetch('https://api.cloudflare.com/client/v4/ips', {
-            signal: AbortSignal.timeout(5000), // 設定 5 秒超時
-            headers: { 'User-Agent': 'CF-Worker' }
-        });
-        if (cfIpsRes.ok) {
-            const data = await cfIpsRes.json();
-            if (data.success && data.result && data.result.ipv4_cidrs) {
-                officialCidrs = data.result.ipv4_cidrs;
-            }
-        }
-    } catch (e) {
-        console.error("無法取得 Cloudflare 官方即時 IP 白名單，將起用備用清單:", e.message);
-    }
-
-    // === 2. 備用防線：如果官方 API 連線失敗，則自動套用這套備用白名單 ===
-    if (officialCidrs.length === 0) {
-        officialCidrs = [
-            "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
-            "141.101.64.0/18", "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22",
-            "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14",
-            "172.64.0.0/13", "131.0.72.0/22"
-        ];
-    }
-
-    // === 3. 開始抓取各個優化源，並使用剛才獲取的 officialCidrs 進行安全過濾 ===
-    for (const url of urls) {
-        try {
-            const txt = await fetchURLWithTimeout(url);
-            const matches = txt.match(cidrRegex) || [];
-            let count = 0;
-            matches.forEach(m => {
-                if (m.includes('/')) {
-                    expandCIDR(m).forEach(ip => { 
-                        // 套用動態獲取的白名單驗證
-                        if (isValidIPv4(ip) && isCloudflareIP(ip, officialCidrs)) { 
-                            uniqueIPs.add(ip); 
-                            count++; 
-                        }
-                    });
-                } else if (isValidIPv4(m) && isCloudflareIP(m, officialCidrs)) { 
-                    uniqueIPs.add(m); 
-                    count++; 
-                }
-            });
-            results.push({ name: url, status: 'success', count });
-        } catch(e) { results.push({ name: url, status: 'error', error: e.message }); }
-    }
-    return { uniqueIPs: Array.from(uniqueIPs).sort((a,b) => ipToNum(a)-ipToNum(b)), results };
+export function numToIp(n) { 
+    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'); 
 }
 
-export function expandCIDR(cidr, maxSample = 10) { 
-    try { 
-        const [ip, m] = cidr.split('/'); 
-        const mask = parseInt(m); 
-        if(isNaN(mask)||mask>32) return [ip]; 
-        if(mask===32) return [ip]; 
-        const start = ipToNum(ip); 
-        const total = Math.pow(2, 32-mask); 
-        const res = new Set(); 
-        const sampleSize = total > maxSample ? maxSample : total; 
-        
-        if(total <= maxSample) {
-            for(let i=0; i<total; i++) {
-                res.add(numToIp(start + i));
-            }
-        } else {
-            while (res.size < sampleSize) {
-                const randomOffset = Math.floor(Math.random() * total);
-                res.add(numToIp(start + randomOffset));
-            }
-        }
-        return Array.from(res); 
-    } catch { return []; } 
+export function isValidIPv4(ip) { 
+    return /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ip); 
 }
 
-export async function autoSpeedTestAndStore(env, ips, limit = AUTO_TEST_MAX_IPS) {
-    if (!ips || !ips.length) return null;
-    let randomIPs = [...ips];
-    for (let i = randomIPs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [randomIPs[i], randomIPs[j]] = [randomIPs[j], randomIPs[i]]; }
-    
-    const safeLimit = Math.min(limit, SAFE_SUBREQUEST_LIMIT);
-    const targets = randomIPs.slice(0, safeLimit);
-    const results = [];
-    const BATCH = 5;
-    for (let i = 0; i < targets.length; i += BATCH) {
-      const batch = targets.slice(i, i + BATCH);
-      const promises = batch.map(ip => testIPSpeed(ip));
-      const outcomes = await Promise.allSettled(promises);
-      for (const out of outcomes) { if (out.status === 'fulfilled' && out.value && out.value.success) results.push({ ip: out.value.ip, latency: Math.round(out.value.latency), colo: out.value.colo }); }
-      if (i + BATCH < targets.length) await new Promise(r => setTimeout(r, 200));
-    }
-    results.sort((a, b) => a.latency - b.latency);
-    const fastIPs = results.slice(0, FAST_IP_COUNT);
-    await env.IP_STORAGE.put('cloudflare_fast_ips', JSON.stringify({ fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'backend_auto' }));
-}
-
-export async function handleSpeedTest(request, env) {
-    const url = new URL(request.url);
-    const ip = url.searchParams.get('ip');
-    if (!ip) return jsonResponse({ error: 'IP required' }, 400);
-    try {
-      const testUrl = `https://speed.cloudflare.com/__down?bytes=1000`;
-      const response = await fetch(testUrl, { 
-        headers: { 'Host': 'speed.cloudflare.com' }, 
-        cf: { resolveOverride: ip }, 
-        signal: AbortSignal.timeout(2500)
-      });
-      if (!response.ok) throw new Error(response.statusText);
-      await response.text(); 
-      const ray = response.headers.get('cf-ray');
-      return jsonResponse({ success: true, ip, colo: ray ? ray.split('-').pop() : null, time: new Date() });
-    } catch (error) { return jsonResponse({ success: false, ip, error: error.message }, 200); }
-}
-
-export async function testIPSpeed(ip) {
-    try {
-      const start = Date.now();
-      const res = await fetch(`https://speed.cloudflare.com/__down?bytes=1000`, { 
-          headers: { 'Host': 'speed.cloudflare.com' }, 
-          cf: { resolveOverride: ip }, 
-          signal: AbortSignal.timeout(2500)
-      });
-      if (!res.ok) throw new Error('HTTP Error: ' + res.status);
-      await res.text();
-      const ray = res.headers.get('cf-ray');
-      return { success: true, ip, latency: Date.now() - start, colo: ray ? ray.split('-').pop() : null };
-    } catch (e) { return { success: false, ip, error: e.message }; }
-}
-
-export async function handleUploadResults(env, request) {
-    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
-    try {
-        const { fastIPs } = await request.json();
-        if (!fastIPs || !Array.isArray(fastIPs)) return jsonResponse({ error: '無效數據' }, 400);
-        await env.IP_STORAGE.put('browser_fast_ips', JSON.stringify({
-            fastIPs: fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'browser_upload'
-        }));
-        return jsonResponse({ success: true });
-    } catch (e) { return jsonResponse({ error: e.message }, 500); }
-}
-
-export async function handleGetFastIPsText(env, request) {
-    const url = new URL(request.url);
-    const format = url.searchParams.get('format');
-    const data = await getStoredSpeedIPs(env);
-    const list = data.fastIPs || [];
-    let txt = '';
-    if (format === 'ip') {
-        txt = list.map(i => i.ip).join('\n');
-    } else {
-        txt = list.map(i => {
-            const cn = COLO_MAP[i.colo] ? `(${COLO_MAP[i.colo]})` : '';
-            return `${i.ip}#${i.colo}${cn}:${i.latency}ms`;
-        }).join('\n');
-    }
-    return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-}
-
-export async function handleGetBrowserIPsText(env, request) {
-    const url = new URL(request.url);
-    const format = url.searchParams.get('format');
-    const data = await getStoredBrowserIPs(env);
-    const list = data.fastIPs || [];
-    let txt = '';
-    if (format === 'ip') {
-        txt = list.map(i => i.ip).join('\n');
-    } else {
-        txt = list.map(i => {
-            const cn = COLO_MAP[i.colo] ? `(${COLO_MAP[i.colo]})` : '';
-            return `${i.ip}#${i.colo}${cn}:${i.latency}ms`;
-        }).join('\n');
-    }
-    return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-}
-
-export async function handleGetFastIPs(env, request) { return jsonResponse(await getStoredSpeedIPs(env)); }
-export async function handleGetIPs(env, request) { const d = await getStoredIPs(env); return new Response(d.ips.join('\n'), { headers: {'Content-Type': 'text/plain'} }); }
-export async function handleRawIPs(env, request) { return jsonResponse(await getStoredIPs(env)); }
-export async function handleItdogData(env, request) { const d = await getStoredSpeedIPs(env); return jsonResponse({ ips: (d.fastIPs||[]).map(i => i.ip) }); }
-
-export async function handleUserIP(request) {
-    const cf = request.cf;
-    const ip = request.headers.get('CF-Connecting-IP');
-    return jsonResponse({
-        ip: ip,
-        country: cf ? cf.country : 'UNK',
-        city: cf ? cf.city : '',
-        asn: cf ? cf.asn : '',
-        colo: cf ? cf.colo : ''
-    });
-}
-
-// 獲取動態來源
-export async function handleGetCidrSources(env) {
-    const urls = await getCidrSources(env);
-    return jsonResponse({ success: true, urls });
-}
-
-// 儲存修改後的網址
-export async function handleSaveCidrSources(env, request) {
-    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
-    try {
-        const { urls } = await request.json();
-        if (!urls || !Array.isArray(urls)) return jsonResponse({ error: '無效數據' }, 400);
-        
-        // 清理空行並確認是 HTTP/HTTPS
-        const cleanedUrls = urls.map(u => u.trim()).filter(u => u.startsWith('http'));
-        await env.IP_STORAGE.put('cidr_source_urls', JSON.stringify(cleanedUrls));
-        return jsonResponse({ success: true, urls: cleanedUrls });
-    } catch (e) {
-        return jsonResponse({ error: e.message }, 500);
-    }
-}
-
-async function fetchURLWithTimeout(url) { 
-    const res = await fetch(url, { 
-        signal: AbortSignal.timeout(8000),
-        headers: {'User-Agent': 'CF-Worker'} 
+export function jsonResponse(data, status = 200) { 
+    return new Response(JSON.stringify(data), { 
+        status, 
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } 
     }); 
-    if(!res.ok) throw new Error('HTTP Error: ' + res.status + ' ' + res.statusText); 
-    return await res.text(); 
 }
 
-````
+export function handleCORS() { 
+    return new Response(null, { 
+        headers: { 
+            'Access-Control-Allow-Origin': '*', 
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization' 
+        } 
+    }); 
+}
 
-## File: wrangler.toml
-````toml
-name = "cf-worker-bestip"
-main = "src/index.js"
-compatibility_date = "2024-03-01"
+// 新增：檢查某個 IP 是否落在特定的 CIDR 網段內
+export function isIpInCidr(ip, cidr) {
+    try {
+        const [cidrIp, maskStr] = cidr.split('/');
+        const maskBits = parseInt(maskStr || '32');
+        const start = ipToNum(cidrIp);
+        const totalIPs = Math.pow(2, 32 - maskBits);
+        const end = start + totalIPs - 1;
+        const num = ipToNum(ip);
+        return num >= start && num <= end;
+    } catch {
+        return false;
+    }
+}
 
-# KV 命名空間綁定
-[[kv_namespaces]]
-binding = "IP_STORAGE"
-id = "KV_ID_PLACEHOLDER"
-
-# ----------------- 每 6 小時定時觸發設定 -----------------
-[triggers]
-crons = ["0 */6 * * *"]  # 每 6 小時整點自動執行一次 (非常安全且節省額度的設定)
-
-````
-
-## File: .github/workflows/deploy.yml
-````yml
-name: Deploy Worker
-
-on:
-  push:
-    branches:
-      - main  # 當推送到 main 分支時觸發自動部署
-  workflow_dispatch:  # 支援在 GitHub 網頁上手動點擊按鈕部署
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    name: Deploy to Cloudflare
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      # 部署前：將 wrangler.toml 的 KV_ID_PLACEHOLDER 替換成 GitHub Secrets 的 KV ID
-      - name: Replace KV ID in wrangler.toml
-        run: |
-          sed -i 's/KV_ID_PLACEHOLDER/${{ secrets.CF_KV_ID }}/g' wrangler.toml
-
-      - name: Deploy Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+// 新增：檢查 IP 是否屬於 Cloudflare 官方 IP 集
+export function isCloudflareIP(ip, cfCidrs) {
+    return cfCidrs.some(cidr => isIpInCidr(ip, cidr));
+}
 
 ````
 
@@ -1555,6 +1539,37 @@ jobs:
             git commit -m "docs: auto-generate complete codebase [skip ci]"
             git push origin main
           fi
+
+````
+
+## File: .github/workflows/deploy.yml
+````yml
+name: Deploy Worker
+
+on:
+  push:
+    branches:
+      - main  # 當推送到 main 分支時觸發自動部署
+  workflow_dispatch:  # 支援在 GitHub 網頁上手動點擊按鈕部署
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy to Cloudflare
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 部署前：將 wrangler.toml 的 KV_ID_PLACEHOLDER 替換成 GitHub Secrets 的 KV ID
+      - name: Replace KV ID in wrangler.toml
+        run: |
+          sed -i 's/KV_ID_PLACEHOLDER/${{ secrets.CF_KV_ID }}/g' wrangler.toml
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
 ````
 
