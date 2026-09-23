@@ -12,7 +12,7 @@ export async function serveHTML(env, request) {
     let fastIPs = [];
     if (isLoggedIn) {
         data = await getStoredIPs(env);
-        // 優先載入包含下載速度資訊的本機測速資料，若無則回退至後端優選
+        // 優先載入包含本機測速速度的資料，若無則顯示後端預設優選列表
         const browserData = await getStoredBrowserIPs(env);
         if (browserData.fastIPs && browserData.fastIPs.length > 0) {
             fastIPs = browserData.fastIPs;
@@ -280,7 +280,7 @@ export async function serveHTML(env, request) {
                     
                     <div class="button-group">
                         <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
-                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 瀏覽器二階段測速</button>
+                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 下載測速優選 IP</button>
                         
                         <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
                             <div class="dropdown-content">
@@ -355,8 +355,8 @@ export async function serveHTML(env, request) {
                             const cnName = COLO_MAP[colo] ? ` (${COLO_MAP[colo]})` : '';
                             const coloDisplay = colo + cnName;
                             const coloStyle =['HKG', 'SJC', 'LAX', 'TPE'].includes(colo) ? 'color: #10b981; font-weight: 700;' : '';
-                            return `<div class="ip-item" data-ip="${item.ip}"><div class="ip-info"><span class="colo-badge" style="${coloStyle}">${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result ${speedLatClass}">${item.latency}ms</span><span class="speed-result ${speedDownClass}">${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('${item.ip}')">複製</button></div>`;
-                        }).join('') : '<p style="text-align:center; padding:30px; color:#a1a1aa;">暫無數據，請點擊測速</p>'}
+                            return `<div class="ip-item" data-ip="${item.ip}" data-colo="${item.colo || 'UNK'}" data-latency="${item.latency || 0}"><div class="ip-info"><span class="colo-badge" style="${coloStyle}">${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result ${speedLatClass}">${item.latency}ms</span><span class="speed-result ${speedDownClass}">${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('${item.ip}')">複製</button></div>`;
+                        }).join('') : '<p style="text-align:center; padding:30px; color:#a1a1aa;">暫無數據，請點擊更新</p>'}
                     </div>
                 </div>
             </div>
@@ -387,8 +387,6 @@ export async function serveHTML(env, request) {
         let sessionId = '${sessionId || ''}';
         let isLoggedIn = ${isLoggedIn};
         let tokenConfig = ${tokenConfig ? JSON.stringify(tokenConfig) : 'null'};
-        const MAX_TEST = ${BROWSER_TEST_MAX_IPS};
-        const DISPLAY_COUNT = ${FAST_IP_COUNT}; // 20 個精選節點
 
         document.addEventListener('DOMContentLoaded', function() {
             document.addEventListener('keydown', function(e) {
@@ -594,79 +592,67 @@ export async function serveHTML(env, request) {
             btn.disabled = false; btn.innerText = '🔄 立即更新庫';
         }
 
-        // ==================== 二階段測速核心引擎 ====================
+        // ==================== 專注只測現有 20 個優選節點 ====================
         async function startSpeedTest() {
-            const allIpElements = document.querySelectorAll('.ip-item');
-            let allIps = [];
-            try { const res = await api('/raw'); allIps = res.ips && res.ips.length ? res.ips : []; } catch(e) {}
-            if(!allIps.length) allIps = Array.from(allIpElements).map(el => el.dataset.ip);
-            if(!allIps.length) return addLog('❌ 無可用 IP 進行測速', 'error');
+            const ipElements = document.querySelectorAll('.ip-item');
+            let targets = [];
+
+            // 1. 優先直接抓取表格中已呈現的優選 IP 節點
+            ipElements.forEach(el => {
+                if (el.dataset.ip) {
+                    targets.push({
+                        ip: el.dataset.ip,
+                        colo: el.dataset.colo || 'UNK',
+                        latency: parseInt(el.dataset.latency || '0', 10)
+                    });
+                }
+            });
+
+            // 2. 若表格尚無資料，嘗試從後端讀取最新優選節點
+            if (!targets.length) {
+                try {
+                    const res = await api('/fast-ips');
+                    if (res.fastIPs && res.fastIPs.length) {
+                        targets = res.fastIPs;
+                    }
+                } catch(e) {}
+            }
+
+            if (!targets.length) {
+                return addLog('❌ 列表中無可用 IP，請先點擊「🔄 立即更新庫」獲取節點', 'error');
+            }
 
             clearLog(); 
             const speedtestBtn = document.getElementById('speedtest-btn');
             speedtestBtn.disabled = true;
 
-            // 洗牌隨機抽取
-            for (let i = allIps.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [allIps[i], allIps[j]] = [allIps[j], allIps[i]]; }
-            const targets = allIps.slice(0, MAX_TEST);
-            
             document.getElementById('progress').style.display = 'block';
             const progressFill = document.getElementById('progress-fill');
             const statusText = document.getElementById('status-text');
 
-            // ----------------- 階段 1：延遲初篩 (Ping 測試) -----------------
-            addLog(\`🚀 [階段 1/2] 延遲初篩開始 (測試 \${targets.length} 個節點)...\`, 'info');
-            let pingResults = [];
-            let count = 0;
-
-            for(const ip of targets) {
-                statusText.innerText = \`階段 1/2: 測試延遲 \${ip} (\${count+1}/\${targets.length})\`;
-                try {
-                    const start = performance.now();
-                    const res = await fetch(\`/speedtest?ip=\${ip}&bytes=1000\`);
-                    const data = await res.json();
-                    const lat = Math.round(performance.now() - start);
-                    if(data.success) {
-                        pingResults.push({ ip, latency: lat, colo: data.colo || 'UNK' });
-                    }
-                } catch(e) {}
-                count++;
-                progressFill.style.width = ((count / targets.length) * 50) + '%';
-                await new Promise(r => setTimeout(r, 40));
-            }
-
-            if(!pingResults.length) {
-                statusText.innerText = '初篩失敗，無可用節點';
-                progressFill.style.width = '0%';
-                speedtestBtn.disabled = false;
-                return addLog('❌ 階段 1 初篩失敗：所有節點均無響應', 'error');
-            }
-
-            // 依延遲排序，選出前 20 名進入二階段頻寬測速
-            pingResults.sort((a,b) => a.latency - b.latency);
-            const topCandidates = pingResults.slice(0, DISPLAY_COUNT);
-            addLog(\`✅ [階段 1/2] 初篩完成，已挑選延遲最低的 \${topCandidates.length} 個候選節點進入下載測速\`, 'info');
-
-            // ----------------- 階段 2：頻寬下載測速 (2MB 下載) -----------------
-            addLog(\`⚡ [階段 2/2] 開始測量下載速度 (每個節點下載 2MB)...\`, 'info');
+            addLog(\`⚡ 開始對當前 \${targets.length} 個優選節點進行下載頻寬實測 (單節點 2MB)...\`, 'info');
+            
             let finalResults = [];
             const DOWNLOAD_BYTES = 2000000; // 2MB
-            let testIndex = 0;
+            let count = 0;
 
-            for(const item of topCandidates) {
-                testIndex++;
-                statusText.innerText = \`階段 2/2: 下載測速 \${item.ip} (\${testIndex}/\${topCandidates.length})\`;
+            for (const item of targets) {
+                count++;
+                statusText.innerText = \`正在測試下載: \${item.ip} (\${count}/\${targets.length})\`;
                 let speedMBs = 0;
 
                 try {
+                    // 同步實時測量一次當前 Ping 與下載 2MB 的傳輸速度
                     const start = performance.now();
                     const res = await fetch(\`/speedtest?ip=\${item.ip}&bytes=\${DOWNLOAD_BYTES}\`);
-                    if(res.ok) {
+                    if (res.ok) {
                         const blob = await res.blob();
                         const durationSec = (performance.now() - start) / 1000;
-                        if(durationSec > 0 && blob.size > 0) {
+                        if (durationSec > 0 && blob.size > 0) {
                             speedMBs = parseFloat(((blob.size / (1024 * 1024)) / durationSec).toFixed(2));
                         }
+                        const rayHeader = res.headers.get('CF-Ray');
+                        if (rayHeader) item.colo = rayHeader.split('-').pop();
                     }
                 } catch(e) {
                     speedMBs = 0;
@@ -674,19 +660,19 @@ export async function serveHTML(env, request) {
 
                 item.speed = speedMBs;
                 finalResults.push(item);
-                addLog(\`⚡ [\${item.colo}] \${item.ip} - \${item.latency}ms | 下載: \${item.speed} MB/s\`, item.speed >= 10 ? 'info' : 'normal');
+                addLog(\`⚡ [\${item.colo}] \${item.ip} - \${item.latency}ms | 下載速度: \${item.speed} MB/s\`, item.speed >= 10 ? 'info' : 'normal');
 
-                progressFill.style.width = (50 + (testIndex / topCandidates.length) * 50) + '%';
+                progressFill.style.width = ((count / targets.length) * 100) + '%';
                 await new Promise(r => setTimeout(r, 60));
             }
 
-            // ----------------- 依下載速度排序（由大到小） -----------------
+            // 依下載速度由高到低排序（若速度相同則依延遲由低到高）
             finalResults.sort((a, b) => {
                 if (b.speed !== a.speed) return b.speed - a.speed;
                 return a.latency - b.latency;
             });
 
-            // 更新網頁表格
+            // 即時重構渲染右側表格
             let newHtml = '';
             finalResults.forEach(item => {
                 const colo = item.colo || 'UNK';
@@ -696,20 +682,19 @@ export async function serveHTML(env, request) {
                 const speedLatClass = item.latency < 200 ? 'speed-fast-bg' : '';
                 const speedDownClass = item.speed >= 10 ? 'speed-fast-bg' : '';
                 const speedDisplay = item.speed ? \`\${item.speed} MB/s\` : '-';
-                newHtml += \`<div class="ip-item" data-ip="\${item.ip}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">\${item.ip}</span><span class="speed-result \${speedLatClass}">\${item.latency}ms</span><span class="speed-result \${speedDownClass}">\${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
+                newHtml += \`<div class="ip-item" data-ip="\${item.ip}" data-colo="\${colo}" data-latency="\${item.latency}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">\${item.ip}</span><span class="speed-result \${speedLatClass}">\${item.latency}ms</span><span class="speed-result \${speedDownClass}">\${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
             });
             document.getElementById('ip-list').innerHTML = newHtml;
 
-            // 上傳並持久化保存至 KV
+            // 同步上傳回存至 KV
             try { 
                 await api('/upload-results', 'POST', { fastIPs: finalResults }); 
-                addLog('✅ 優選結果（含下載頻寬數據）已成功同步至 KV 儲存庫'); 
+                addLog('✅ 優選結果（已依下載頻寬排序）已同步至雲端 KV'); 
             } catch(e) {
-                addLog('⚠️ 結果上傳失敗: ' + e.message, 'error');
+                addLog('⚠️ 同步失敗: ' + e.message, 'error');
             }
 
-            statusText.innerText = '測速完成 (已依下載頻寬降冪排序)';
-            progressFill.style.width = '100%';
+            statusText.innerText = '測速完成 (已依下載頻寬排序)';
             setTimeout(() => { document.getElementById('progress').style.display = 'none'; }, 2000);
             speedtestBtn.disabled = false;
         }
