@@ -12,11 +12,11 @@ export async function serveHTML(env, request) {
     let fastIPs = [];
     if (isLoggedIn) {
         data = await getStoredIPs(env);
-        // 核心：一律以「後端排程測出」的最新 20 個優選節點 (如 LHR 倫敦) 為基礎名單
+        // 一律以「後端排程測出」的最新 20 個優選節點 (如 LHR 倫敦) 為基準
         const speedData = await getStoredSpeedIPs(env);
         fastIPs = speedData.fastIPs || [];
 
-        // 若先前測過本機下載速度，僅合併「速度」欄位數值，絕不變更後端原始機房與延遲
+        // 若先前測過本機下載速度，合併「速度」數值，保留後端原始機房與延遲
         try {
             const browserData = await getStoredBrowserIPs(env);
             if (browserData && browserData.fastIPs && browserData.fastIPs.length > 0) {
@@ -105,10 +105,10 @@ export async function serveHTML(env, request) {
         .tag-http { background: #fef2f2; color: #991b1b; border-color: #fee2e2; } 
         .tag-https { background: #f0f9ff; color: #075985; border-color: #e0f2fe; }
 
-        /* 五欄式佈局：機房(110px) | IP位址(1fr) | 延遲(70px) | 速度(85px) | 操作(55px) */
+        /* 五欄式佈局：機房(110px) | IP位址(1fr) | 延遲(70px) | 速度(85px) | 操作(60px) */
         .ip-table-header { 
             display: grid; 
-            grid-template-columns: 110px 1fr 70px 85px 55px; 
+            grid-template-columns: 110px 1fr 70px 85px 60px; 
             padding: 10px 16px; 
             font-size: 0.725rem; 
             font-weight: 700; 
@@ -126,12 +126,12 @@ export async function serveHTML(env, request) {
         .ip-table-header > span:nth-child(2) { text-align: left; }
         .ip-table-header > span:nth-child(3) { text-align: center; }
         .ip-table-header > span:nth-child(4) { text-align: center; }
-        .ip-table-header > span:nth-child(5) { text-align: right; }
+        .ip-table-header > span:nth-child(5) { text-align: center; }
 
         .ip-list { border: 1px solid var(--border); border-bottom-left-radius: var(--radius); border-bottom-right-radius: var(--radius); overflow: hidden; }
         .ip-item { 
             display: grid; 
-            grid-template-columns: 110px 1fr 70px 85px 55px; 
+            grid-template-columns: 110px 1fr 70px 85px 60px; 
             align-items: center; 
             padding: 10px 16px; 
             border-bottom: 1px solid var(--border); 
@@ -176,7 +176,29 @@ export async function serveHTML(env, request) {
         }
         .speed-fast-bg { background: rgba(16, 185, 129, 0.08); color: #065f46; border-color: rgba(16, 185, 129, 0.15); } 
         
-        .small-btn { padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-main); font-size: 0.725rem; font-weight: 600; cursor: pointer; transition: .15s; justify-self: end; }
+        /* 專門為表格操作欄設定的對齊樣式 */
+        .action-btn {
+            width: 100%;
+            max-width: 48px;
+            height: 24px;
+            padding: 0;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-main);
+            font-size: 0.725rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: .15s;
+            justify-self: center;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+        .action-btn:hover { background: var(--bg-inner); border-color: var(--text-sub); }
+
+        .small-btn { padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-main); font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: .15s; }
         .small-btn:hover { background: var(--bg-inner); border-color: var(--text-sub); }
 
         .dropdown { position: relative; display: inline-block; }
@@ -248,12 +270,12 @@ export async function serveHTML(env, request) {
             .button { width: 100%; justify-content: center; }
             .dropdown { width: 100%; display: block; }
             .dropdown-content { width: 100%; position: absolute; z-index: 10; }
-            .ip-table-header { grid-template-columns: 85px 1fr 50px 65px 45px; padding: 8px 10px; font-size: 0.675rem; }
-            .ip-item { grid-template-columns: 85px 1fr 50px 65px 45px; padding: 10px 10px; }
+            .ip-table-header { grid-template-columns: 85px 1fr 50px 65px 50px; padding: 8px 10px; font-size: 0.675rem; }
+            .ip-item { grid-template-columns: 85px 1fr 50px 65px 50px; padding: 10px 10px; }
             .ip-address { font-size: 0.775rem; }
             .colo-badge { font-size: 0.725rem; }
             .speed-result { font-size: 0.675rem; padding: 2px 2px; }
-            .small-btn { padding: 4px 6px; font-size: 0.675rem; }
+            .action-btn { max-width: 44px; font-size: 0.675rem; }
             .log-box { padding: 12px; height: 160px; }
         }
 
@@ -334,7 +356,6 @@ export async function serveHTML(env, request) {
                     
                     <div class="button-group">
                         <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
-                        <!-- 按鈕名稱已正式修正：補上空格 -->
                         <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 優選 IP 測速</button>
                         
                         <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
@@ -409,7 +430,7 @@ export async function serveHTML(env, request) {
                             const cnName = COLO_MAP[colo] ? ` (${COLO_MAP[colo]})` : '';
                             const coloDisplay = colo + cnName;
                             const coloStyle =['HKG', 'SJC', 'LAX', 'TPE'].includes(colo) ? 'color: #10b981; font-weight: 700;' : '';
-                            return `<div class="ip-item" data-ip="${item.ip}" data-colo="${item.colo || 'UNK'}" data-latency="${item.latency || 0}"><div class="ip-info"><span class="colo-badge" style="${coloStyle}">${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result ${speedLatClass}">${item.latency}ms</span><span class="speed-result ${speedDownClass}">${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('${item.ip}')">複製</button></div>`;
+                            return `<div class="ip-item" data-ip="${item.ip}" data-colo="${item.colo || 'UNK'}" data-latency="${item.latency || 0}"><div class="ip-info"><span class="colo-badge" style="${coloStyle}">${coloDisplay}</span><span class="ip-address">${item.ip}</span><span class="speed-result ${speedLatClass}">${item.latency}ms</span><span class="speed-result ${speedDownClass}">${speedDisplay}</span></div><button class="action-btn" onclick="copyIP('${item.ip}')">複製</button></div>`;
                         }).join('') : '<p style="text-align:center; padding:30px; color:#a1a1aa;">暫無數據，請點擊更新</p>'}
                     </div>
                 </div>
@@ -646,11 +667,9 @@ export async function serveHTML(env, request) {
             btn.disabled = false; btn.innerText = '🔄 立即更新庫';
         }
 
-        // ==================== 鎖定只測後端現有優選結果 (保留原始機房，如 LHR) ====================
         async function startSpeedTest() {
             let targets = [];
 
-            // 1. 優先直接從後端 API 讀取後端優選庫存
             try {
                 const res = await api('/fast-ips');
                 if (res && res.fastIPs && res.fastIPs.length) {
@@ -658,7 +677,6 @@ export async function serveHTML(env, request) {
                 }
             } catch(e) {}
 
-            // 2. 若 API 讀取不到，直接讀取表格目前的後端節點資訊
             if (!targets.length) {
                 const ipElements = document.querySelectorAll('.ip-item');
                 ipElements.forEach(el => {
@@ -709,7 +727,6 @@ export async function serveHTML(env, request) {
                     speedMBs = 0;
                 }
 
-                // 核心重點：只記錄下載速率，絕對不覆蓋 item.colo 與 item.latency，完整保留後端機房 (如 LHR)
                 item.speed = speedMBs;
                 finalResults.push(item);
                 addLog(\`⚡ [\${item.colo}] \${item.ip} - \${item.latency}ms | 下載速度: \${item.speed} MB/s\`, item.speed >= 10 ? 'info' : 'normal');
@@ -718,13 +735,11 @@ export async function serveHTML(env, request) {
                 await new Promise(r => setTimeout(r, 50));
             }
 
-            // 依下載速度由高到低排序（若速度相同則依後端延遲由低到高）
             finalResults.sort((a, b) => {
                 if (b.speed !== a.speed) return b.speed - a.speed;
                 return a.latency - b.latency;
             });
 
-            // 即時重構渲染右側表格 (保留原始機房代碼)
             let newHtml = '';
             finalResults.forEach(item => {
                 const colo = item.colo || 'UNK';
@@ -734,11 +749,10 @@ export async function serveHTML(env, request) {
                 const speedLatClass = item.latency < 200 ? 'speed-fast-bg' : '';
                 const speedDownClass = item.speed >= 10 ? 'speed-fast-bg' : '';
                 const speedDisplay = item.speed ? \`\${item.speed} MB/s\` : '-';
-                newHtml += \`<div class="ip-item" data-ip="\${item.ip}" data-colo="\${colo}" data-latency="\${item.latency}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">\${item.ip}</span><span class="speed-result \${speedLatClass}">\${item.latency}ms</span><span class="speed-result \${speedDownClass}">\${speedDisplay}</span></div><button class="small-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
+                newHtml += \`<div class="ip-item" data-ip="\${item.ip}" data-colo="\${colo}" data-latency="\${item.latency}"><div class="ip-info"><span class="colo-badge" style="\${coloStyle}">\${coloDisplay}</span><span class="ip-address">\${item.ip}</span><span class="speed-result \${speedLatClass}">\${item.latency}ms</span><span class="speed-result \${speedDownClass}">\${speedDisplay}</span></div><button class="action-btn" onclick="copyIP('\${item.ip}')">複製</button></div>\`;
             });
             document.getElementById('ip-list').innerHTML = newHtml;
 
-            // 同步保存至 KV
             try { 
                 await api('/upload-results', 'POST', { fastIPs: finalResults }); 
                 addLog('✅ 優選結果（已依下載頻寬排序）已同步至雲端 KV'); 
