@@ -1,137 +1,89 @@
 # Complete Project Codebase
-Generated on: Wed Sep 23 11:12:08 UTC 2026
+Generated on: Wed Sep 23 11:12:39 UTC 2026
 
-## File: wrangler.toml
-````toml
-name = "cf-worker-bestip"
-main = "src/index.js"
-compatibility_date = "2024-03-01"
+## File: .github/workflows/combine-code.yml
+````yml
+name: Generate All Codebase to MD
 
-# KV 命名空間綁定
-[[kv_namespaces]]
-binding = "IP_STORAGE"
-id = "KV_ID_PLACEHOLDER"
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'combined_project_code.md' # 避免此檔案自身更新引發無限循環
+  workflow_dispatch: # 支援在 GitHub 網頁上手動觸發執行
 
-# ----------------- 每 6 小時定時觸發設定 -----------------
-[triggers]
-crons = ["0 */6 * * *"]  # 每 6 小時整點自動執行一次 (非常安全且節省額度的設定)
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Combine All Files into MD
+        run: |
+          OUT_FILE="combined_project_code.md"
+          echo "# Complete Project Codebase" > "$OUT_FILE"
+          echo "Generated on: $(date)" >> "$OUT_FILE"
+          echo "" >> "$OUT_FILE"
+
+          # 遍歷專案內的所有檔案，排除依賴、Git 歷史、打包產物及二進位檔案
+          find . -type f \
+            -not -path "*/node_modules/*" \
+            -not -path "*/.git/*" \
+            -not -path "*/dist/*" \
+            -not -name "package-lock.json" \
+            -not -name "yarn.lock" \
+            -not -name "pnpm-lock.yaml" \
+            -not -name "$OUT_FILE" \
+            -not -name "*.png" \
+            -not -name "*.jpg" \
+            -not -name "*.jpeg" \
+            -not -name "*.gif" \
+            -not -name "*.ico" \
+            -not -name "*.woff*" \
+            -not -name "*.ttf" | while read -r file; do
+              
+              # 取得相對路徑與副檔名
+              rel_path="${file#./}"
+              ext="${file##*.}"
+              
+              # 如果無副檔名，清除變數避免格式混亂
+              if [ "$ext" = "$rel_path" ]; then
+                ext=""
+              fi
+              
+              # 寫入檔案標題
+              echo "## File: $rel_path" >> "$OUT_FILE"
+              # 使用四個反單引號（````）包裹，防止內部程式碼的三個反單引號造成排版衝突
+              echo "\`\`\`\`$ext" >> "$OUT_FILE"
+              cat "$file" >> "$OUT_FILE"
+              echo "" >> "$OUT_FILE"
+              echo "\`\`\`\`" >> "$OUT_FILE"
+              echo "" >> "$OUT_FILE"
+          done
+
+      - name: Commit and Push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add combined_project_code.md
+          
+          if git diff --staged --quiet; then
+            echo "No changes in codebase."
+          else
+            git commit -m "docs: auto-generate complete codebase [skip ci]"
+            git push origin main
+          fi
 
 ````
 
-## File: README.md
-````md
-# Cloudflare 優選 IP 測速平台
-
-這是一個基於 Cloudflare Workers 運作的輕量化優選 IP 收集、測速與訂閱發佈平台。系統會定期從多個優良的第三方來源抓取 CIDR 網段，自動進行隨機抽樣、多執行緒測速、過濾，並保存最優質的節點 IP 提供下載。
-
-本專案採用**優雅的模組化架構**設計，並導入了**前端動態網址源管理**與**動態官方 IP 安全過濾防線**，確保所有匯出的 IP 皆 100% 屬於官方原生機房節點。
-
----
-
-## 🚀 一鍵部署 (One-Click Deploy)
-
-點選下方按鈕，即可直接將此專案發佈至您的 Cloudflare 帳戶中：
-
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sammy0101/cf-worker-bestip)
-
-> ⚠️ **一鍵部署後的重要提醒**：
-> 1. 部署完成後，請務必至 Cloudflare Workers 後台建立一個 **KV 命名空間**，命名為 `IP_STORAGE`，並綁定至您的 Worker。
-> 2. 請至 **「Settings」 (設定) -> 「Variables」 (變數)」** 設定您的加密管理員密碼 `ADMIN_PASSWORD` [3]。
-
----
-
-## 🌟 核心功能特色
-
-* ⚙️ **前端動態網址來源管理（KV 存儲）**：全新支援直接在前端控制面板點選「⚙️ 來源管理」彈窗。您可以像編輯筆記本一樣自由「增、刪、改」您的訂閱網址（每行一個），數據會即時儲存至您的 Cloudflare KV 資料庫 [3]。系統亦提供「一鍵載入系統預設」的功能。
-* 🛡️ **動態官方安全過濾（防範惡意 IP 注入）**：系統在抓取 IP 時，會**動態從 Cloudflare 官方 API** (`https://api.cloudflare.com/client/v4/ips`) 獲取最新的官方 IPv4 網段 [1]，自動剔除任何意外混入的第三方「反代 IP（如阿里雲、甲骨文、台灣中華電信反代節點）」或惡意監聽伺服器，確保連線隱私與傳輸安全。
-* 🖥️ **瀑布流動畫控制台（Waterfall Logs）**：在手動點選「立即更新庫」時，日誌控制台會以 `150ms` 的優雅延遲，逐條動畫化印出每個訂閱網址的提取狀態與成功 IP 數量。在所有明細印出後，**才在最底部印出最終成功彙總（Summary）**。重新整理後，整條瀑布流日誌依然完美保留在畫面上。
-* 📊 **雙欄式黃金分割工作台 (60/40 Split-Pane)**：
-  * **左側主面板 (60%)**：整合「控制面板」、「支援端口資訊」與「擬真終端控制台」，構成核心中央主控中心。
-  * **右側側邊欄 (40%)**：專屬於「優選 IP 列表」大數據表格，機房、IP 與延遲具有完美的垂直對齊邊界，並完美解決了長名稱（如 `GIG (里約熱內盧)`、`EZE (布宜諾斯艾利斯)`）的排版重疊問題。
-* ⚡ **獨立的前/後端測速上限**：
-  * **後台自動排程（每 6 小時一次）**：限制在 **45 次** 測速以內，完美貼合免費版單次 50 次子請求的硬限制 [2]。
-  * **前端瀏覽器手動測速**：允許發起 **1000 次** 甚至更高的大範圍深層測速，不影響後端運行，且在手機端亦有完美的排版適配。
-
-<img width="2559" height="1250" alt="螢幕擷取畫面 2026-06-29 181708" src="https://github.com/user-attachments/assets/be9dc68d-c165-4815-b3b9-8d9f1a094daf" />
-
----
-
-## 📂 專案模組檔案結構
-
-本專案推薦使用以下模組化目錄結構進行管理與自動部署：
-
-```text
-你的專案目錄/
-├── wrangler.toml           # 專案設定檔 (含每 6 小時定時排程配置)
-├── .github/
-│   └── workflows/
-│       └── deploy.yml      # GitHub Actions 自動部署腳本 (支援手動與自動觸發)
-└── src/
-    ├── config.js           # 靜態常數、預設訂閱優化源與機房代碼
-    ├── utils.js            # 基礎工具 (IP 轉換、JSON 回應、CORS 等)
-    ├── auth.js             # 權限驗證、Session 登入、Token 生成
-    ├── ip.js               # IP 解析、動態安全校驗、前/後端測速 API、KV 動態來源管理
-    ├── html.js             # 前端 HTML 介面與 CSS 樣式
-    └── index.js            # 路由調度與排程入口
-```
-
----
-
-## 🌐 自訂子網域 API 串接與設定教學
-
-本系統支援透過不同的**子網域首碼（Subdomain Prefixes）**直接獲取對應的純文字 API 數據。
-
-### ⚠️ 重要限制說明（為什麼預設的 `.workers.dev` 無法使用子網域？）
-Cloudflare 預設分配的 `xxx.workers.dev` 網域其 SSL 憑證僅支援單級子網域（`*.workers.dev`）。如果您嘗試存取 `fast.xxx.workers.dev`，會因為憑證不匹配與 DNS 無法解析而失敗。
-
-**若要使用子網域 API 功能，您必須綁定您自己的「自訂網域」（Custom Domain，例如 `yourdomain.com`）：**
-
-1. 登入 Cloudflare 後台，點選您的 Worker 專案（`cf-worker-bestip`）。
-2. 切換到 **「Settings」（設定）** -> **「Triggers」（觸發器）** 索引標籤。
-3. 找到 **「Custom Domains」（自訂網域）**，點選 **「Add Custom Domain」** 新增：
-   - `fast.yourdomain.com` (後端優選)
-   - `browser.yourdomain.com` (本機測速)
-   - `all.yourdomain.com` (完整 IP 庫)
-
-### 📊 子網域 API 連結對照表
-
-在主控台點選 **「🔌 複製 API 連結 ▼」**，系統會自動在最前方替換或補上對應的子網域，並直接附帶 `https://` 協定：
-
-| 複製按鈕 | 自動生成之子網域 API | 獲取數據內容 |
-| :--- | :--- | :--- |
-| **複製後端優選 IP API** | `https://fast.yourdomain.com` | 🚀 **後端自動優選 IP** (每 6 小時自動更新) |
-| **複製本機測速結果 API** | `https://browser.yourdomain.com` | ⚡ **瀏覽器本機測速結果** (由前端測速後上傳的數據) |
-| **複製完整 IP 庫 API** | `https://all.yourdomain.com` | 📦 **完整備用 IP 庫** (經過安全性校驗的所有官方 IP) |
-
----
-
-## 🛠️ GitHub Actions 自動部署指南
-
-Wrangler（Cloudflare 官方編譯工具）會自動順著 `src/index.js` 的 `import` 宣告將所有拆分的檔案打包壓縮，您不需要手動進行繁瑣的編譯。
-
-### 步驟 1：配置本地 `wrangler.toml`
-
-請在專案根目錄下建立 `wrangler.toml`，並設定 **每 6 小時定時任務**：
-
-```toml
-name = "cf-worker-bestip"
-main = "src/index.js"
-compatibility_date = "2024-03-01"
-
-# KV 命名空間綁定
-[[kv_namespaces]]
-binding = "IP_STORAGE"
-id = "KV_ID_PLACEHOLDER"
-
-# ----------------- 每 6 小時定時任務觸發設定 -----------------
-[triggers]
-crons = ["0 */6 * * *"]
-```
-
-### 步驟 2：配置 GitHub Actions 工作流
-在 `.github/workflows/deploy.yml` 建立以下部署腳本：
-
-```yaml
+## File: .github/workflows/deploy.yml
+````yml
 name: Deploy Worker
 
 on:
@@ -158,26 +110,443 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-```
 
-### 步驟 3：在 GitHub 設定 Secrets
-前往您 GitHub 專案的 **Settings -> Secrets and variables -> Actions**，新增以下 Secrets：
-1. `CLOUDFLARE_API_TOKEN`：您的 Cloudflare 編輯權限 API Token。
-2. `CLOUDFLARE_ACCOUNT_ID`：您的 Cloudflare 帳戶 ID。
-3. `CF_KV_ID`：您建立的 KV 命名空間 ID。
+````
 
----
+## File: src/utils.js
+````js
+// src/utils.js
 
-## 🔒 敏感資料安全指引
+export function ipToNum(ip) { 
+    return ip.split('.').reduce((a, b) => a * 256 + parseInt(b), 0); 
+}
 
-為了安全性，**請不要將您的管理密碼明文寫入 GitHub 代碼中**：
-1. 進入 Cloudflare Dashboard 的 Worker 專案頁面。
-2. 點選 **「Settings」（設定）** -> **「Variables」（變數）**。
-3. 在 **「Environment Variables」（環境變數）** 點選 **「Add variable」**：
-   * **Name**：`ADMIN_PASSWORD`
-   * **Value**：您的自訂管理員密碼
-   * **類型**：請務必點選 **「Encrypt」**（加密成密鑰，隱藏明文顯示） [3]。
-4. 點選右下角 **「Save and deploy」**（儲存並部署） [3]。
+export function numToIp(n) { 
+    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'); 
+}
+
+export function isValidIPv4(ip) { 
+    return /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ip); 
+}
+
+export function jsonResponse(data, status = 200) { 
+    return new Response(JSON.stringify(data), { 
+        status, 
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } 
+    }); 
+}
+
+export function handleCORS() { 
+    return new Response(null, { 
+        headers: { 
+            'Access-Control-Allow-Origin': '*', 
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization' 
+        } 
+    }); 
+}
+
+// 新增：檢查某個 IP 是否落在特定的 CIDR 網段內
+export function isIpInCidr(ip, cidr) {
+    try {
+        const [cidrIp, maskStr] = cidr.split('/');
+        const maskBits = parseInt(maskStr || '32');
+        const start = ipToNum(cidrIp);
+        const totalIPs = Math.pow(2, 32 - maskBits);
+        const end = start + totalIPs - 1;
+        const num = ipToNum(ip);
+        return num >= start && num <= end;
+    } catch {
+        return false;
+    }
+}
+
+// 新增：檢查 IP 是否屬於 Cloudflare 官方 IP 集
+export function isCloudflareIP(ip, cfCidrs) {
+    return cfCidrs.some(cidr => isIpInCidr(ip, cidr));
+}
+
+````
+
+## File: src/ip.js
+````js
+// src/ip.js
+import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT } from './config.js';
+import { ipToNum, numToIp, isValidIPv4, jsonResponse, isCloudflareIP } from './utils.js';
+import { verifyAdmin } from './auth.js';
+
+// 獲取動態來源（優先讀取 KV，若無則讀取 config.js 預設名單）
+export async function getCidrSources(env) {
+    try {
+        const stored = await env.IP_STORAGE.get('cidr_source_urls');
+        if (stored) {
+            return JSON.parse(stored);
+        }
+    } catch {}
+    return CIDR_SOURCE_URLS;
+}
+
+export async function getStoredIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_ips')) || {ips:[]}; } catch { return {ips:[]}; } }
+export async function getStoredSpeedIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
+export async function getStoredBrowserIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('browser_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
+
+export async function updateAllIPs(env) {
+    const urls = await getCidrSources(env);
+    const uniqueIPs = new Set();
+    const results = [];
+    const cidrRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?:\/(?:[0-9]{1,2}))?\b/gi;
+    
+    let officialCidrs = [];
+    try {
+        const cfIpsRes = await fetch('https://api.cloudflare.com/client/v4/ips', {
+            signal: AbortSignal.timeout(5000),
+            headers: { 'User-Agent': 'CF-Worker' }
+        });
+        if (cfIpsRes.ok) {
+            const data = await cfIpsRes.json();
+            if (data.success && data.result && data.result.ipv4_cidrs) {
+                officialCidrs = data.result.ipv4_cidrs;
+            }
+        }
+    } catch (e) {
+        console.error("無法取得 Cloudflare 官方即時 IP 白名單，將起用備用清單:", e.message);
+    }
+
+    if (officialCidrs.length === 0) {
+        officialCidrs = [
+            "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
+            "141.101.64.0/18", "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22",
+            "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14",
+            "172.64.0.0/13", "131.0.72.0/22"
+        ];
+    }
+
+    for (const url of urls) {
+        try {
+            const txt = await fetchURLWithTimeout(url);
+            const matches = txt.match(cidrRegex) || [];
+            let count = 0;
+            matches.forEach(m => {
+                if (m.includes('/')) {
+                    expandCIDR(m).forEach(ip => { 
+                        if (isValidIPv4(ip) && isCloudflareIP(ip, officialCidrs)) { 
+                            uniqueIPs.add(ip); 
+                            count++; 
+                        }
+                    });
+                } else if (isValidIPv4(m) && isCloudflareIP(m, officialCidrs)) { 
+                    uniqueIPs.add(m); 
+                    count++; 
+                }
+            });
+            results.push({ name: url, status: 'success', count });
+        } catch(e) { results.push({ name: url, status: 'error', error: e.message }); }
+    }
+    return { uniqueIPs: Array.from(uniqueIPs).sort((a,b) => ipToNum(a)-ipToNum(b)), results };
+}
+
+export function expandCIDR(cidr, maxSample = 10) { 
+    try { 
+        const [ip, m] = cidr.split('/'); 
+        const mask = parseInt(m); 
+        if(isNaN(mask)||mask>32) return [ip]; 
+        if(mask===32) return [ip]; 
+        const start = ipToNum(ip); 
+        const total = Math.pow(2, 32-mask); 
+        const res = new Set(); 
+        const sampleSize = total > maxSample ? maxSample : total; 
+        
+        if(total <= maxSample) {
+            for(let i=0; i<total; i++) {
+                res.add(numToIp(start + i));
+            }
+        } else {
+            while (res.size < sampleSize) {
+                const randomOffset = Math.floor(Math.random() * total);
+                res.add(numToIp(start + randomOffset));
+            }
+        }
+        return Array.from(res); 
+    } catch { return []; } 
+}
+
+export async function autoSpeedTestAndStore(env, ips, limit = AUTO_TEST_MAX_IPS) {
+    if (!ips || !ips.length) return null;
+    let randomIPs = [...ips];
+    for (let i = randomIPs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [randomIPs[i], randomIPs[j]] = [randomIPs[j], randomIPs[i]]; }
+    
+    const safeLimit = Math.min(limit, SAFE_SUBREQUEST_LIMIT);
+    const targets = randomIPs.slice(0, safeLimit);
+    const results = [];
+    const BATCH = 5;
+    for (let i = 0; i < targets.length; i += BATCH) {
+      const batch = targets.slice(i, i + BATCH);
+      const promises = batch.map(ip => testIPSpeed(ip));
+      const outcomes = await Promise.allSettled(promises);
+      for (const out of outcomes) { if (out.status === 'fulfilled' && out.value && out.value.success) results.push({ ip: out.value.ip, latency: Math.round(out.value.latency), colo: out.value.colo }); }
+      if (i + BATCH < targets.length) await new Promise(r => setTimeout(r, 200));
+    }
+    results.sort((a, b) => a.latency - b.latency);
+    const fastIPs = results.slice(0, FAST_IP_COUNT);
+    await env.IP_STORAGE.put('cloudflare_fast_ips', JSON.stringify({ fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'backend_auto' }));
+}
+
+export async function handleSpeedTest(request, env) {
+    const url = new URL(request.url);
+    const ip = url.searchParams.get('ip');
+    const bytes = parseInt(url.searchParams.get('bytes') || '1000', 10);
+    if (!ip) return jsonResponse({ error: 'IP required' }, 400);
+
+    try {
+      const testUrl = `https://speed.cloudflare.com/__down?bytes=${bytes}`;
+      const timeout = bytes > 1000 ? 7000 : 2500;
+      const response = await fetch(testUrl, { 
+        headers: { 'Host': 'speed.cloudflare.com' }, 
+        cf: { resolveOverride: ip }, 
+        signal: AbortSignal.timeout(timeout)
+      });
+      if (!response.ok) throw new Error(response.statusText);
+
+      if (bytes <= 1000) {
+        await response.text(); 
+        const ray = response.headers.get('cf-ray');
+        return jsonResponse({ success: true, ip, colo: ray ? ray.split('-').pop() : null, time: new Date() });
+      }
+
+      const ray = response.headers.get('cf-ray');
+      return new Response(response.body, {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers': 'CF-Ray',
+          'CF-Ray': ray || ''
+        }
+      });
+    } catch (error) { 
+      return jsonResponse({ success: false, ip, error: error.message }, 200); 
+    }
+}
+
+export async function testIPSpeed(ip) {
+    try {
+      const start = Date.now();
+      const res = await fetch(`https://speed.cloudflare.com/__down?bytes=1000`, { 
+          headers: { 'Host': 'speed.cloudflare.com' }, 
+          cf: { resolveOverride: ip }, 
+          signal: AbortSignal.timeout(2500)
+      });
+      if (!res.ok) throw new Error('HTTP Error: ' + res.status);
+      await res.text();
+      const ray = res.headers.get('cf-ray');
+      return { success: true, ip, latency: Date.now() - start, colo: ray ? ray.split('-').pop() : null };
+    } catch (e) { return { success: false, ip, error: e.message }; }
+}
+
+// 核心改進：測速上傳後直接同步更新至 cloudflare_fast_ips
+export async function handleUploadResults(env, request) {
+    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
+    try {
+        const { fastIPs } = await request.json();
+        if (!fastIPs || !Array.isArray(fastIPs)) return jsonResponse({ error: '無效數據' }, 400);
+        
+        await env.IP_STORAGE.put('cloudflare_fast_ips', JSON.stringify({
+            fastIPs: fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'browser_upload'
+        }));
+        return jsonResponse({ success: true });
+    } catch (e) { return jsonResponse({ error: e.message }, 500); }
+}
+
+// 優選 IP 純文字 API 導出（自動附帶下載頻寬數據）
+export async function handleGetFastIPsText(env, request) {
+    const url = new URL(request.url);
+    const format = url.searchParams.get('format');
+    const data = await getStoredSpeedIPs(env);
+    const list = data.fastIPs || [];
+    let txt = '';
+    if (format === 'ip') {
+        txt = list.map(i => i.ip).join('\n');
+    } else {
+        txt = list.map(i => {
+            const cn = COLO_MAP[i.colo] ? `(${COLO_MAP[i.colo]})` : '';
+            const speedStr = i.speed ? ` | ${i.speed} MB/s` : '';
+            return `${i.ip}#${i.colo}${cn}:${i.latency}ms${speedStr}`;
+        }).join('\n');
+    }
+    return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
+}
+
+export async function handleGetBrowserIPsText(env, request) { return handleGetFastIPsText(env, request); }
+export async function handleGetFastIPs(env, request) { return jsonResponse(await getStoredSpeedIPs(env)); }
+export async function handleGetIPs(env, request) { const d = await getStoredIPs(env); return new Response((d.ips || []).join('\n'), { headers: {'Content-Type': 'text/plain; charset=utf-8'} }); }
+export async function handleRawIPs(env, request) { return jsonResponse(await getStoredIPs(env)); }
+export async function handleItdogData(env, request) { const d = await getStoredSpeedIPs(env); return jsonResponse({ ips: (d.fastIPs||[]).map(i => i.ip) }); }
+
+export async function handleUserIP(request) {
+    const cf = request.cf;
+    const ip = request.headers.get('CF-Connecting-IP');
+    return jsonResponse({
+        ip: ip,
+        country: cf ? cf.country : 'UNK',
+        city: cf ? cf.city : '',
+        asn: cf ? cf.asn : '',
+        colo: cf ? cf.colo : ''
+    });
+}
+
+export async function handleGetCidrSources(env) {
+    const urls = await getCidrSources(env);
+    return jsonResponse({ success: true, urls });
+}
+
+export async function handleSaveCidrSources(env, request) {
+    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
+    try {
+        const { urls } = await request.json();
+        if (!urls || !Array.isArray(urls)) return jsonResponse({ error: '無效數據' }, 400);
+        
+        const cleanedUrls = urls.map(u => u.trim()).filter(u => u.startsWith('http'));
+        await env.IP_STORAGE.put('cidr_source_urls', JSON.stringify(cleanedUrls));
+        return jsonResponse({ success: true, urls: cleanedUrls });
+    } catch (e) {
+        return jsonResponse({ error: e.message }, 500);
+    }
+}
+
+async function fetchURLWithTimeout(url) { 
+    const res = await fetch(url, { 
+        signal: AbortSignal.timeout(8000),
+        headers: {'User-Agent': 'CF-Worker'} 
+    }); 
+    if(!res.ok) throw new Error('HTTP Error: ' + res.status + ' ' + res.statusText); 
+    return await res.text(); 
+}
+
+````
+
+## File: src/config.js
+````js
+// src/config.js
+
+export const VERSION = "V4.2.1";             // 系統版本號
+export const FAST_IP_COUNT = 20;             // 優質 IP 數量
+export const AUTO_TEST_MAX_IPS = 45;        // 定時任務測速最大數量 (安全限制在 45 以內)
+export const SAFE_SUBREQUEST_LIMIT = 45;    // 子請求安全硬上限，防止免費方案部署時發生異常
+export const BROWSER_TEST_MAX_IPS = 1000;    // 新增：瀏覽器測速的最大數量 (可設定 500 甚至更高)
+
+// IP 來源網址列表 (亞洲優化庫)
+export const CIDR_SOURCE_URLS = [
+    'https://bestcf.pages.dev/uouin/all.txt',
+    'https://bestcf.pages.dev/wetest/ipv4.txt',
+    'https://bestcf.pages.dev/moistr/all.txt',
+    'https://bestcf.pages.dev/gslege/Cfxyz.txt',
+    'https://bestcf.pages.dev/gslege/SG.txt',
+    'https://bestcf.pages.dev/gslege/US.txt',
+    'https://bestcf.pages.dev/gslege/JP.txt',
+    'https://bestcf.pages.dev/cfyes/ipv4.txt',
+    'https://bestcf.pages.dev/nirevil/ipv4.txt',
+    'https://raw.githubusercontent.com/ymyuuu/IPDB/refs/heads/main/BestCF/bestcfv4.txt',
+    'https://bestcf.pages.dev/zhixuanwang/ipv4-onlyip.txt',
+    'https://raw.githubusercontent.com/joname1/BestCFip/refs/heads/main/ipv4.txt',
+    'https://raw.githubusercontent.com/Senflare/Senflare-IP/refs/heads/main/IPlist-Pro.txt',
+    'https://bestcf.pages.dev/vvhan/ipv4.txt',
+    'https://bestcf.pages.dev/ircf/ipv4.txt',
+    'https://raw.githubusercontent.com/gshtwy/CF-DNS-Clone/refs/heads/main/wetest-cloudflare-v4.txt',
+    'https://090227.pages.dev/bestcf?isp=all&ips=20',
+    'https://090227.pages.dev/bestcf?isp=ct&ips=50',
+];
+
+// 全球機房代碼對照表
+export const COLO_MAP = {
+    'HKG': '香港', 'TPE': '台北', 'NRT': '東京', 'KIX': '大阪', 'ICN': '首爾', 'FUK': '福岡', 'OKA': '沖繩', 'CTS': '札幌', 'KHH': '高雄',
+    'SIN': '新加坡', 'KUL': '吉隆坡', 'BKK': '曼谷', 'MNL': '馬尼拉', 'SGN': '胡志明市', 'HAN': '河內', 'CGK': '雅加達', 'KNO': '棉蘭', 'DPS': '峇里島', 'PNH': '金邊', 'RGN': '仰光', 'VTE': '永珍',
+    'LAX': '洛杉磯', 'SJC': '聖荷西', 'SFO': '舊金山', 'SEA': '西雅圖', 'PDX': '波特蘭', 'YVR': '溫哥華', 'SAN': '聖地牙哥', 'PHX': '鳳凰城', 'LAS': '拉斯維加斯', 'SMF': '沙加緬度', 'SLC': '鹽湖城',
+    'JFK': '紐約', 'EWR': '紐華克', 'ORD': '芝加哥', 'IAD': '華盛頓', 'MIA': '邁阿密', 'DFW': '達拉斯', 'IAH': '休士頓', 'ATL': '亞特蘭大', 'YYZ': '多倫多', 'YUL': '蒙特婁', 'DEN': '丹佛', 'BOS': '波士頓', 'PHL': '費城', 'DTW': '底特律', 'MSP': '明尼阿波利斯',
+    'LHR': '倫敦', 'AMS': '阿姆斯特丹', 'FRA': '法蘭克福', 'CDG': '巴黎', 'MAD': '馬德里', 'ZRH': '蘇黎世', 'MXP': '米蘭', 'VIE': '維也納', 'ARN': '斯德哥爾摩', 'OSL': '奧斯陸', 'CPH': '哥本哈根', 'HEL': '赫爾辛基', 'WAW': '華沙', 'PRG': '布拉格', 'BUD': '布達佩斯', 'OTP': '布加勒斯特', 'ATH': '雅典', 'IST': '伊斯坦堡', 'DUB': '都裂林', 'BRU': '布魯塞爾', 'MUC': '慕尼黑', 'TXL': '柏林', 'LIS': '里斯本', 'FCO': '羅馬', 'BCN': '巴塞隆納',
+    'SYD': '雪梨', 'MEL': '墨爾本', 'BNE': '布里斯本', 'PER': '伯斯', 'AKL': '奧克蘭', 'ADL': '阿得雷德', 'CBR': '坎培拉',
+    'SCL': '聖地亞哥', 'GRU': '聖保羅', 'EZE': '布宜諾斯艾利斯', 'BOG': '波哥大', 'LIM': '利馬', 'GIG': '里約熱內盧', 'QRO': '克雷塔羅',
+    'DXB': '杜拜', 'TLV': '特拉維夫', 'DOH': '杜哈', 'JNB': '約翰尼斯堡', 'CPT': '開普敦', 'BOM': '孟買', 'DEL': '德里', 'MAA': '清奈', 'HYD': '海得拉巴', 'KWI': '科威特', 'RUH': '利雅德', 'MCT': '馬斯喀特'
+};
+
+````
+
+## File: src/index.js
+````js
+// src/index.js
+import { serveHTML } from './html.js';
+import { handleCORS, jsonResponse } from './utils.js';
+import { verifyAdmin, handleAdminLogin, handleAdminLogout, handleAdminStatus, handleAdminToken } from './auth.js';
+import { updateAllIPs, autoSpeedTestAndStore, handleSpeedTest, handleUploadResults, handleGetFastIPsText, handleGetBrowserIPsText, handleGetFastIPs, handleGetIPs, handleRawIPs, handleItdogData, handleUserIP, handleGetCidrSources, handleSaveCidrSources } from './ip.js';
+import { AUTO_TEST_MAX_IPS } from './config.js';
+
+export default {
+    async scheduled(event, env, ctx) {
+      ctx.waitUntil(handleScheduled(env));
+    },
+  
+    async fetch(request, env, ctx) {
+      const url = new URL(request.url);
+      const path = url.pathname;
+      const hostname = url.hostname.toLowerCase();
+      
+      if (!env.IP_STORAGE) return new Response('錯誤：KV 未綁定', {status: 500});
+      if (request.method === 'OPTIONS') return handleCORS();
+
+      try {
+        if (hostname.startsWith('fast.') || hostname.startsWith('fast-')) return await handleGetFastIPsText(env, request);
+        if (hostname.startsWith('browser.') || hostname.startsWith('web.')) return await handleGetBrowserIPsText(env, request);
+        if (hostname.startsWith('all.') || hostname.startsWith('ips.') || hostname.startsWith('raw.')) return await handleGetIPs(env, request);
+
+        switch (path) {
+          case '/': return await serveHTML(env, request);
+          case '/update': if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405); return await handleUpdate(env, request); 
+          case '/upload-results': if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405); return await handleUploadResults(env, request);
+          case '/ips': return await handleGetIPs(env, request);
+          case '/ip.txt': return await handleGetIPs(env, request);
+          case '/raw': return await handleRawIPs(env, request);
+          case '/fast-ips': return await handleGetFastIPs(env, request);
+          case '/fast-ips.txt': return await handleGetFastIPsText(env, request);
+          case '/browser-ips.txt': return await handleGetBrowserIPsText(env, request);
+          case '/speedtest': return await handleSpeedTest(request, env);
+          case '/itdog-data': return await handleItdogData(env, request);
+          case '/my-ip': return handleUserIP(request);
+          case '/admin-login': return await handleAdminLogin(request, env);
+          case '/admin-status': return await handleAdminStatus(env);
+          case '/admin-logout': return await handleAdminLogout(request, env);
+          case '/admin-token': return await handleAdminToken(request, env);
+          
+          // 動態網址來源控制端點
+          case '/cidr-sources': 
+            if (request.method === 'POST') return await handleSaveCidrSources(env, request);
+            return await handleGetCidrSources(env);
+            
+          default: return jsonResponse({ error: 'Endpoint not found' }, 404);
+        }
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+};
+
+async function handleScheduled(env) {
+    const { uniqueIPs, results } = await updateAllIPs(env);
+    await env.IP_STORAGE.put('cloudflare_ips', JSON.stringify({ ips: uniqueIPs, lastUpdated: new Date().toISOString(), count: uniqueIPs.length, sources: results }));
+    await autoSpeedTestAndStore(env, uniqueIPs, AUTO_TEST_MAX_IPS);
+}
+
+async function handleUpdate(env, request) {
+    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
+    const start = Date.now();
+    const { uniqueIPs, results } = await updateAllIPs(env);
+    await env.IP_STORAGE.put('cloudflare_ips', JSON.stringify({
+      ips: uniqueIPs, lastUpdated: new Date().toISOString(), count: uniqueIPs.length, sources: results
+    }));
+    return jsonResponse({ 
+      success: true, 
+      duration: (Date.now()-start)+'ms', 
+      totalIPs: uniqueIPs.length,
+      results: results 
+    });
+}
 
 ````
 
@@ -1094,543 +1463,120 @@ export async function serveHTML(env, request) {
 
 ````
 
-## File: src/ip.js
-````js
-// src/ip.js
-import { CIDR_SOURCE_URLS, COLO_MAP, AUTO_TEST_MAX_IPS, FAST_IP_COUNT, SAFE_SUBREQUEST_LIMIT } from './config.js';
-import { ipToNum, numToIp, isValidIPv4, jsonResponse, isCloudflareIP } from './utils.js';
-import { verifyAdmin } from './auth.js';
+## File: README.md
+````md
+# Cloudflare 優選 IP 測速平台
 
-// 獲取動態來源（優先讀取 KV，若無則讀取 config.js 預設名單）
-export async function getCidrSources(env) {
-    try {
-        const stored = await env.IP_STORAGE.get('cidr_source_urls');
-        if (stored) {
-            return JSON.parse(stored);
-        }
-    } catch {}
-    return CIDR_SOURCE_URLS;
-}
+這是一個基於 Cloudflare Workers 運作的輕量化優選 IP 收集、測速與訂閱發佈平台。系統會定期從多個優良的第三方來源抓取 CIDR 網段，自動進行隨機抽樣、多執行緒測速、過濾，並保存最優質的節點 IP 提供下載。
 
-export async function getStoredIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_ips')) || {ips:[]}; } catch { return {ips:[]}; } }
-export async function getStoredSpeedIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('cloudflare_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
-export async function getStoredBrowserIPs(env) { try { return JSON.parse(await env.IP_STORAGE.get('browser_fast_ips')) || {fastIPs:[]}; } catch { return {fastIPs:[]}; } }
+本專案採用**優雅的模組化架構**設計，並導入了**前端動態網址源管理**與**動態官方 IP 安全過濾防線**，確保所有匯出的 IP 皆 100% 屬於官方原生機房節點。
 
-export async function updateAllIPs(env) {
-    const urls = await getCidrSources(env);
-    const uniqueIPs = new Set();
-    const results = [];
-    const cidrRegex = /\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?:\/(?:[0-9]{1,2}))?\b/gi;
-    
-    let officialCidrs = [];
-    try {
-        const cfIpsRes = await fetch('https://api.cloudflare.com/client/v4/ips', {
-            signal: AbortSignal.timeout(5000),
-            headers: { 'User-Agent': 'CF-Worker' }
-        });
-        if (cfIpsRes.ok) {
-            const data = await cfIpsRes.json();
-            if (data.success && data.result && data.result.ipv4_cidrs) {
-                officialCidrs = data.result.ipv4_cidrs;
-            }
-        }
-    } catch (e) {
-        console.error("無法取得 Cloudflare 官方即時 IP 白名單，將起用備用清單:", e.message);
-    }
+---
 
-    if (officialCidrs.length === 0) {
-        officialCidrs = [
-            "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22",
-            "141.101.64.0/18", "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22",
-            "198.41.128.0/17", "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14",
-            "172.64.0.0/13", "131.0.72.0/22"
-        ];
-    }
+## 🚀 一鍵部署 (One-Click Deploy)
 
-    for (const url of urls) {
-        try {
-            const txt = await fetchURLWithTimeout(url);
-            const matches = txt.match(cidrRegex) || [];
-            let count = 0;
-            matches.forEach(m => {
-                if (m.includes('/')) {
-                    expandCIDR(m).forEach(ip => { 
-                        if (isValidIPv4(ip) && isCloudflareIP(ip, officialCidrs)) { 
-                            uniqueIPs.add(ip); 
-                            count++; 
-                        }
-                    });
-                } else if (isValidIPv4(m) && isCloudflareIP(m, officialCidrs)) { 
-                    uniqueIPs.add(m); 
-                    count++; 
-                }
-            });
-            results.push({ name: url, status: 'success', count });
-        } catch(e) { results.push({ name: url, status: 'error', error: e.message }); }
-    }
-    return { uniqueIPs: Array.from(uniqueIPs).sort((a,b) => ipToNum(a)-ipToNum(b)), results };
-}
+點選下方按鈕，即可直接將此專案發佈至您的 Cloudflare 帳戶中：
 
-export function expandCIDR(cidr, maxSample = 10) { 
-    try { 
-        const [ip, m] = cidr.split('/'); 
-        const mask = parseInt(m); 
-        if(isNaN(mask)||mask>32) return [ip]; 
-        if(mask===32) return [ip]; 
-        const start = ipToNum(ip); 
-        const total = Math.pow(2, 32-mask); 
-        const res = new Set(); 
-        const sampleSize = total > maxSample ? maxSample : total; 
-        
-        if(total <= maxSample) {
-            for(let i=0; i<total; i++) {
-                res.add(numToIp(start + i));
-            }
-        } else {
-            while (res.size < sampleSize) {
-                const randomOffset = Math.floor(Math.random() * total);
-                res.add(numToIp(start + randomOffset));
-            }
-        }
-        return Array.from(res); 
-    } catch { return []; } 
-}
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/sammy0101/cf-worker-bestip)
 
-export async function autoSpeedTestAndStore(env, ips, limit = AUTO_TEST_MAX_IPS) {
-    if (!ips || !ips.length) return null;
-    let randomIPs = [...ips];
-    for (let i = randomIPs.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [randomIPs[i], randomIPs[j]] = [randomIPs[j], randomIPs[i]]; }
-    
-    const safeLimit = Math.min(limit, SAFE_SUBREQUEST_LIMIT);
-    const targets = randomIPs.slice(0, safeLimit);
-    const results = [];
-    const BATCH = 5;
-    for (let i = 0; i < targets.length; i += BATCH) {
-      const batch = targets.slice(i, i + BATCH);
-      const promises = batch.map(ip => testIPSpeed(ip));
-      const outcomes = await Promise.allSettled(promises);
-      for (const out of outcomes) { if (out.status === 'fulfilled' && out.value && out.value.success) results.push({ ip: out.value.ip, latency: Math.round(out.value.latency), colo: out.value.colo }); }
-      if (i + BATCH < targets.length) await new Promise(r => setTimeout(r, 200));
-    }
-    results.sort((a, b) => a.latency - b.latency);
-    const fastIPs = results.slice(0, FAST_IP_COUNT);
-    await env.IP_STORAGE.put('cloudflare_fast_ips', JSON.stringify({ fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'backend_auto' }));
-}
+> ⚠️ **一鍵部署後的重要提醒**：
+> 1. 部署完成後，請務必至 Cloudflare Workers 後台建立一個 **KV 命名空間**，命名為 `IP_STORAGE`，並綁定至您的 Worker。
+> 2. 請至 **「Settings」 (設定) -> 「Variables」 (變數)」** 設定您的加密管理員密碼 `ADMIN_PASSWORD` [3]。
 
-// 支援一階段 1KB 延遲測試與二階段 2MB 頻寬下載串流
-export async function handleSpeedTest(request, env) {
-    const url = new URL(request.url);
-    const ip = url.searchParams.get('ip');
-    const bytes = parseInt(url.searchParams.get('bytes') || '1000', 10);
-    if (!ip) return jsonResponse({ error: 'IP required' }, 400);
+---
 
-    try {
-      const testUrl = `https://speed.cloudflare.com/__down?bytes=${bytes}`;
-      const timeout = bytes > 1000 ? 7000 : 2500;
-      const response = await fetch(testUrl, { 
-        headers: { 'Host': 'speed.cloudflare.com' }, 
-        cf: { resolveOverride: ip }, 
-        signal: AbortSignal.timeout(timeout)
-      });
-      if (!response.ok) throw new Error(response.statusText);
+## 🌟 核心功能特色
 
-      // 第一階段延遲測試（小資料量 1KB）
-      if (bytes <= 1000) {
-        await response.text(); 
-        const ray = response.headers.get('cf-ray');
-        return jsonResponse({ success: true, ip, colo: ray ? ray.split('-').pop() : null, time: new Date() });
-      }
+* ⚙️ **前端動態網址來源管理（KV 存儲）**：全新支援直接在前端控制面板點選「⚙️ 來源管理」彈窗。您可以像編輯筆記本一樣自由「增、刪、改」您的訂閱網址（每行一個），數據會即時儲存至您的 Cloudflare KV 資料庫 [3]。系統亦提供「一鍵載入系統預設」的功能。
+* 🛡️ **動態官方安全過濾（防範惡意 IP 注入）**：系統在抓取 IP 時，會**動態從 Cloudflare 官方 API** (`https://api.cloudflare.com/client/v4/ips`) 獲取最新的官方 IPv4 網段 [1]，自動剔除任何意外混入的第三方「反代 IP（如阿里雲、甲骨文、台灣中華電信反代節點）」或惡意監聽伺服器，確保連線隱私與傳輸安全。
+* 🖥️ **瀑布流動畫控制台（Waterfall Logs）**：在手動點選「立即更新庫」時，日誌控制台會以 `150ms` 的優雅延遲，逐條動畫化印出每個訂閱網址的提取狀態與成功 IP 數量。在所有明細印出後，**才在最底部印出最終成功彙總（Summary）**。重新整理後，整條瀑布流日誌依然完美保留在畫面上。
+* 📊 **雙欄式黃金分割工作台 (60/40 Split-Pane)**：
+  * **左側主面板 (60%)**：整合「控制面板」、「支援端口資訊」與「擬真終端控制台」，構成核心中央主控中心。
+  * **右側側邊欄 (40%)**：專屬於「優選 IP 列表」大數據表格，機房、IP 與延遲具有完美的垂直對齊邊界，並完美解決了長名稱（如 `GIG (里約熱內盧)`、`EZE (布宜諾斯艾利斯)`）的排版重疊問題。
+* ⚡ **獨立的前/後端測速上限**：
+  * **後台自動排程（每 6 小時一次）**：限制在 **45 次** 測速以內，完美貼合免費版單次 50 次子請求的硬限制 [2]。
+  * **前端瀏覽器手動測速**：允許發起 **1000 次** 甚至更高的大範圍深層測速，不影響後端運行，且在手機端亦有完美的排版適配。
 
-      // 第二階段頻寬測試（大資料量 2MB）：直接串流回傳 Body 讓前端計時測速
-      const ray = response.headers.get('cf-ray');
-      return new Response(response.body, {
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Expose-Headers': 'CF-Ray',
-          'CF-Ray': ray || ''
-        }
-      });
-    } catch (error) { 
-      return jsonResponse({ success: false, ip, error: error.message }, 200); 
-    }
-}
+<img width="2559" height="1250" alt="螢幕擷取畫面 2026-06-29 181708" src="https://github.com/user-attachments/assets/be9dc68d-c165-4815-b3b9-8d9f1a094daf" />
 
-export async function testIPSpeed(ip) {
-    try {
-      const start = Date.now();
-      const res = await fetch(`https://speed.cloudflare.com/__down?bytes=1000`, { 
-          headers: { 'Host': 'speed.cloudflare.com' }, 
-          cf: { resolveOverride: ip }, 
-          signal: AbortSignal.timeout(2500)
-      });
-      if (!res.ok) throw new Error('HTTP Error: ' + res.status);
-      await res.text();
-      const ray = res.headers.get('cf-ray');
-      return { success: true, ip, latency: Date.now() - start, colo: ray ? ray.split('-').pop() : null };
-    } catch (e) { return { success: false, ip, error: e.message }; }
-}
+---
 
-export async function handleUploadResults(env, request) {
-    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
-    try {
-        const { fastIPs } = await request.json();
-        if (!fastIPs || !Array.isArray(fastIPs)) return jsonResponse({ error: '無效數據' }, 400);
-        await env.IP_STORAGE.put('browser_fast_ips', JSON.stringify({
-            fastIPs: fastIPs, lastTested: new Date().toISOString(), count: fastIPs.length, source: 'browser_upload'
-        }));
-        return jsonResponse({ success: true });
-    } catch (e) { return jsonResponse({ error: e.message }, 500); }
-}
+## 📂 專案模組檔案結構
 
-export async function handleGetFastIPsText(env, request) {
-    const url = new URL(request.url);
-    const format = url.searchParams.get('format');
-    const data = await getStoredSpeedIPs(env);
-    const list = data.fastIPs || [];
-    let txt = '';
-    if (format === 'ip') {
-        txt = list.map(i => i.ip).join('\n');
-    } else {
-        txt = list.map(i => {
-            const cn = COLO_MAP[i.colo] ? `(${COLO_MAP[i.colo]})` : '';
-            return `${i.ip}#${i.colo}${cn}:${i.latency}ms`;
-        }).join('\n');
-    }
-    return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-}
+本專案推薦使用以下模組化目錄結構進行管理與自動部署：
 
-// 支援在 /browser-ips.txt 輸出下載傳輸速度
-export async function handleGetBrowserIPsText(env, request) {
-    const url = new URL(request.url);
-    const format = url.searchParams.get('format');
-    const data = await getStoredBrowserIPs(env);
-    const list = data.fastIPs || [];
-    let txt = '';
-    if (format === 'ip') {
-        txt = list.map(i => i.ip).join('\n');
-    } else {
-        txt = list.map(i => {
-            const cn = COLO_MAP[i.colo] ? `(${COLO_MAP[i.colo]})` : '';
-            const speedStr = i.speed ? ` | ${i.speed} MB/s` : '';
-            return `${i.ip}#${i.colo}${cn}:${i.latency}ms${speedStr}`;
-        }).join('\n');
-    }
-    return new Response(txt, { headers: { 'Content-Type': 'text/plain;charset=utf-8' } });
-}
+```text
+你的專案目錄/
+├── wrangler.toml           # 專案設定檔 (含每 6 小時定時排程配置)
+├── .github/
+│   └── workflows/
+│       └── deploy.yml      # GitHub Actions 自動部署腳本 (支援手動與自動觸發)
+└── src/
+    ├── config.js           # 靜態常數、預設訂閱優化源與機房代碼
+    ├── utils.js            # 基礎工具 (IP 轉換、JSON 回應、CORS 等)
+    ├── auth.js             # 權限驗證、Session 登入、Token 生成
+    ├── ip.js               # IP 解析、動態安全校驗、前/後端測速 API、KV 動態來源管理
+    ├── html.js             # 前端 HTML 介面與 CSS 樣式
+    └── index.js            # 路由調度與排程入口
+```
 
-export async function handleGetFastIPs(env, request) { return jsonResponse(await getStoredSpeedIPs(env)); }
-export async function handleGetIPs(env, request) { const d = await getStoredIPs(env); return new Response((d.ips || []).join('\n'), { headers: {'Content-Type': 'text/plain; charset=utf-8'} }); }
-export async function handleRawIPs(env, request) { return jsonResponse(await getStoredIPs(env)); }
-export async function handleItdogData(env, request) { const d = await getStoredSpeedIPs(env); return jsonResponse({ ips: (d.fastIPs||[]).map(i => i.ip) }); }
+---
 
-export async function handleUserIP(request) {
-    const cf = request.cf;
-    const ip = request.headers.get('CF-Connecting-IP');
-    return jsonResponse({
-        ip: ip,
-        country: cf ? cf.country : 'UNK',
-        city: cf ? cf.city : '',
-        asn: cf ? cf.asn : '',
-        colo: cf ? cf.colo : ''
-    });
-}
+## 🌐 自訂子網域 API 串接與設定教學
 
-export async function handleGetCidrSources(env) {
-    const urls = await getCidrSources(env);
-    return jsonResponse({ success: true, urls });
-}
+本系統支援透過不同的**子網域首碼（Subdomain Prefixes）**直接獲取對應的純文字 API 數據。
 
-export async function handleSaveCidrSources(env, request) {
-    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
-    try {
-        const { urls } = await request.json();
-        if (!urls || !Array.isArray(urls)) return jsonResponse({ error: '無效數據' }, 400);
-        
-        const cleanedUrls = urls.map(u => u.trim()).filter(u => u.startsWith('http'));
-        await env.IP_STORAGE.put('cidr_source_urls', JSON.stringify(cleanedUrls));
-        return jsonResponse({ success: true, urls: cleanedUrls });
-    } catch (e) {
-        return jsonResponse({ error: e.message }, 500);
-    }
-}
+### ⚠️ 重要限制說明（為什麼預設的 `.workers.dev` 無法使用子網域？）
+Cloudflare 預設分配的 `xxx.workers.dev` 網域其 SSL 憑證僅支援單級子網域（`*.workers.dev`）。如果您嘗試存取 `fast.xxx.workers.dev`，會因為憑證不匹配與 DNS 無法解析而失敗。
 
-async function fetchURLWithTimeout(url) { 
-    const res = await fetch(url, { 
-        signal: AbortSignal.timeout(8000),
-        headers: {'User-Agent': 'CF-Worker'} 
-    }); 
-    if(!res.ok) throw new Error('HTTP Error: ' + res.status + ' ' + res.statusText); 
-    return await res.text(); 
-}
+**若要使用子網域 API 功能，您必須綁定您自己的「自訂網域」（Custom Domain，例如 `yourdomain.com`）：**
 
-````
+1. 登入 Cloudflare 後台，點選您的 Worker 專案（`cf-worker-bestip`）。
+2. 切換到 **「Settings」（設定）** -> **「Triggers」（觸發器）** 索引標籤。
+3. 找到 **「Custom Domains」（自訂網域）**，點選 **「Add Custom Domain」** 新增：
+   - `fast.yourdomain.com` (後端優選)
+   - `browser.yourdomain.com` (本機測速)
+   - `all.yourdomain.com` (完整 IP 庫)
 
-## File: src/index.js
-````js
-// src/index.js
-import { serveHTML } from './html.js';
-import { handleCORS, jsonResponse } from './utils.js';
-import { verifyAdmin, handleAdminLogin, handleAdminLogout, handleAdminStatus, handleAdminToken } from './auth.js';
-import { updateAllIPs, autoSpeedTestAndStore, handleSpeedTest, handleUploadResults, handleGetFastIPsText, handleGetBrowserIPsText, handleGetFastIPs, handleGetIPs, handleRawIPs, handleItdogData, handleUserIP, handleGetCidrSources, handleSaveCidrSources } from './ip.js';
-import { AUTO_TEST_MAX_IPS } from './config.js';
+### 📊 子網域 API 連結對照表
 
-export default {
-    async scheduled(event, env, ctx) {
-      ctx.waitUntil(handleScheduled(env));
-    },
-  
-    async fetch(request, env, ctx) {
-      const url = new URL(request.url);
-      const path = url.pathname;
-      const hostname = url.hostname.toLowerCase();
-      
-      if (!env.IP_STORAGE) return new Response('錯誤：KV 未綁定', {status: 500});
-      if (request.method === 'OPTIONS') return handleCORS();
+在主控台點選 **「🔌 複製 API 連結 ▼」**，系統會自動在最前方替換或補上對應的子網域，並直接附帶 `https://` 協定：
 
-      try {
-        if (hostname.startsWith('fast.') || hostname.startsWith('fast-')) return await handleGetFastIPsText(env, request);
-        if (hostname.startsWith('browser.') || hostname.startsWith('web.')) return await handleGetBrowserIPsText(env, request);
-        if (hostname.startsWith('all.') || hostname.startsWith('ips.') || hostname.startsWith('raw.')) return await handleGetIPs(env, request);
+| 複製按鈕 | 自動生成之子網域 API | 獲取數據內容 |
+| :--- | :--- | :--- |
+| **複製後端優選 IP API** | `https://fast.yourdomain.com` | 🚀 **後端自動優選 IP** (每 6 小時自動更新) |
+| **複製本機測速結果 API** | `https://browser.yourdomain.com` | ⚡ **瀏覽器本機測速結果** (由前端測速後上傳的數據) |
+| **複製完整 IP 庫 API** | `https://all.yourdomain.com` | 📦 **完整備用 IP 庫** (經過安全性校驗的所有官方 IP) |
 
-        switch (path) {
-          case '/': return await serveHTML(env, request);
-          case '/update': if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405); return await handleUpdate(env, request); 
-          case '/upload-results': if (request.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405); return await handleUploadResults(env, request);
-          case '/ips': return await handleGetIPs(env, request);
-          case '/ip.txt': return await handleGetIPs(env, request);
-          case '/raw': return await handleRawIPs(env, request);
-          case '/fast-ips': return await handleGetFastIPs(env, request);
-          case '/fast-ips.txt': return await handleGetFastIPsText(env, request);
-          case '/browser-ips.txt': return await handleGetBrowserIPsText(env, request);
-          case '/speedtest': return await handleSpeedTest(request, env);
-          case '/itdog-data': return await handleItdogData(env, request);
-          case '/my-ip': return handleUserIP(request);
-          case '/admin-login': return await handleAdminLogin(request, env);
-          case '/admin-status': return await handleAdminStatus(env);
-          case '/admin-logout': return await handleAdminLogout(request, env);
-          case '/admin-token': return await handleAdminToken(request, env);
-          
-          // 動態網址來源控制端點
-          case '/cidr-sources': 
-            if (request.method === 'POST') return await handleSaveCidrSources(env, request);
-            return await handleGetCidrSources(env);
-            
-          default: return jsonResponse({ error: 'Endpoint not found' }, 404);
-        }
-      } catch (error) {
-        return jsonResponse({ error: error.message }, 500);
-      }
-    }
-};
+---
 
-async function handleScheduled(env) {
-    const { uniqueIPs, results } = await updateAllIPs(env);
-    await env.IP_STORAGE.put('cloudflare_ips', JSON.stringify({ ips: uniqueIPs, lastUpdated: new Date().toISOString(), count: uniqueIPs.length, sources: results }));
-    await autoSpeedTestAndStore(env, uniqueIPs, AUTO_TEST_MAX_IPS);
-}
+## 🛠️ GitHub Actions 自動部署指南
 
-async function handleUpdate(env, request) {
-    if (!await verifyAdmin(request, env)) return jsonResponse({ error: '需要權限' }, 401);
-    const start = Date.now();
-    const { uniqueIPs, results } = await updateAllIPs(env);
-    await env.IP_STORAGE.put('cloudflare_ips', JSON.stringify({
-      ips: uniqueIPs, lastUpdated: new Date().toISOString(), count: uniqueIPs.length, sources: results
-    }));
-    return jsonResponse({ 
-      success: true, 
-      duration: (Date.now()-start)+'ms', 
-      totalIPs: uniqueIPs.length,
-      results: results 
-    });
-}
+Wrangler（Cloudflare 官方編譯工具）會自動順著 `src/index.js` 的 `import` 宣告將所有拆分的檔案打包壓縮，您不需要手動進行繁瑣的編譯。
 
-````
+### 步驟 1：配置本地 `wrangler.toml`
 
-## File: src/config.js
-````js
-// src/config.js
+請在專案根目錄下建立 `wrangler.toml`，並設定 **每 6 小時定時任務**：
 
-export const VERSION = "V4.2.1";             // 系統版本號
-export const FAST_IP_COUNT = 20;             // 優質 IP 數量
-export const AUTO_TEST_MAX_IPS = 45;        // 定時任務測速最大數量 (安全限制在 45 以內)
-export const SAFE_SUBREQUEST_LIMIT = 45;    // 子請求安全硬上限，防止免費方案部署時發生異常
-export const BROWSER_TEST_MAX_IPS = 1000;    // 新增：瀏覽器測速的最大數量 (可設定 500 甚至更高)
+```toml
+name = "cf-worker-bestip"
+main = "src/index.js"
+compatibility_date = "2024-03-01"
 
-// IP 來源網址列表 (亞洲優化庫)
-export const CIDR_SOURCE_URLS = [
-    'https://bestcf.pages.dev/uouin/all.txt',
-    'https://bestcf.pages.dev/wetest/ipv4.txt',
-    'https://bestcf.pages.dev/moistr/all.txt',
-    'https://bestcf.pages.dev/gslege/Cfxyz.txt',
-    'https://bestcf.pages.dev/gslege/SG.txt',
-    'https://bestcf.pages.dev/gslege/US.txt',
-    'https://bestcf.pages.dev/gslege/JP.txt',
-    'https://bestcf.pages.dev/cfyes/ipv4.txt',
-    'https://bestcf.pages.dev/nirevil/ipv4.txt',
-    'https://raw.githubusercontent.com/ymyuuu/IPDB/refs/heads/main/BestCF/bestcfv4.txt',
-    'https://bestcf.pages.dev/zhixuanwang/ipv4-onlyip.txt',
-    'https://raw.githubusercontent.com/joname1/BestCFip/refs/heads/main/ipv4.txt',
-    'https://raw.githubusercontent.com/Senflare/Senflare-IP/refs/heads/main/IPlist-Pro.txt',
-    'https://bestcf.pages.dev/vvhan/ipv4.txt',
-    'https://bestcf.pages.dev/ircf/ipv4.txt',
-    'https://raw.githubusercontent.com/gshtwy/CF-DNS-Clone/refs/heads/main/wetest-cloudflare-v4.txt',
-    'https://090227.pages.dev/bestcf?isp=all&ips=20',
-    'https://090227.pages.dev/bestcf?isp=ct&ips=50',
-];
+# KV 命名空間綁定
+[[kv_namespaces]]
+binding = "IP_STORAGE"
+id = "KV_ID_PLACEHOLDER"
 
-// 全球機房代碼對照表
-export const COLO_MAP = {
-    'HKG': '香港', 'TPE': '台北', 'NRT': '東京', 'KIX': '大阪', 'ICN': '首爾', 'FUK': '福岡', 'OKA': '沖繩', 'CTS': '札幌', 'KHH': '高雄',
-    'SIN': '新加坡', 'KUL': '吉隆坡', 'BKK': '曼谷', 'MNL': '馬尼拉', 'SGN': '胡志明市', 'HAN': '河內', 'CGK': '雅加達', 'KNO': '棉蘭', 'DPS': '峇里島', 'PNH': '金邊', 'RGN': '仰光', 'VTE': '永珍',
-    'LAX': '洛杉磯', 'SJC': '聖荷西', 'SFO': '舊金山', 'SEA': '西雅圖', 'PDX': '波特蘭', 'YVR': '溫哥華', 'SAN': '聖地牙哥', 'PHX': '鳳凰城', 'LAS': '拉斯維加斯', 'SMF': '沙加緬度', 'SLC': '鹽湖城',
-    'JFK': '紐約', 'EWR': '紐華克', 'ORD': '芝加哥', 'IAD': '華盛頓', 'MIA': '邁阿密', 'DFW': '達拉斯', 'IAH': '休士頓', 'ATL': '亞特蘭大', 'YYZ': '多倫多', 'YUL': '蒙特婁', 'DEN': '丹佛', 'BOS': '波士頓', 'PHL': '費城', 'DTW': '底特律', 'MSP': '明尼阿波利斯',
-    'LHR': '倫敦', 'AMS': '阿姆斯特丹', 'FRA': '法蘭克福', 'CDG': '巴黎', 'MAD': '馬德里', 'ZRH': '蘇黎世', 'MXP': '米蘭', 'VIE': '維也納', 'ARN': '斯德哥爾摩', 'OSL': '奧斯陸', 'CPH': '哥本哈根', 'HEL': '赫爾辛基', 'WAW': '華沙', 'PRG': '布拉格', 'BUD': '布達佩斯', 'OTP': '布加勒斯特', 'ATH': '雅典', 'IST': '伊斯坦堡', 'DUB': '都裂林', 'BRU': '布魯塞爾', 'MUC': '慕尼黑', 'TXL': '柏林', 'LIS': '里斯本', 'FCO': '羅馬', 'BCN': '巴塞隆納',
-    'SYD': '雪梨', 'MEL': '墨爾本', 'BNE': '布里斯本', 'PER': '伯斯', 'AKL': '奧克蘭', 'ADL': '阿得雷德', 'CBR': '坎培拉',
-    'SCL': '聖地亞哥', 'GRU': '聖保羅', 'EZE': '布宜諾斯艾利斯', 'BOG': '波哥大', 'LIM': '利馬', 'GIG': '里約熱內盧', 'QRO': '克雷塔羅',
-    'DXB': '杜拜', 'TLV': '特拉維夫', 'DOH': '杜哈', 'JNB': '約翰尼斯堡', 'CPT': '開普敦', 'BOM': '孟買', 'DEL': '德里', 'MAA': '清奈', 'HYD': '海得拉巴', 'KWI': '科威特', 'RUH': '利雅德', 'MCT': '馬斯喀特'
-};
+# ----------------- 每 6 小時定時任務觸發設定 -----------------
+[triggers]
+crons = ["0 */6 * * *"]
+```
 
-````
+### 步驟 2：配置 GitHub Actions 工作流
+在 `.github/workflows/deploy.yml` 建立以下部署腳本：
 
-## File: src/utils.js
-````js
-// src/utils.js
-
-export function ipToNum(ip) { 
-    return ip.split('.').reduce((a, b) => a * 256 + parseInt(b), 0); 
-}
-
-export function numToIp(n) { 
-    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.'); 
-}
-
-export function isValidIPv4(ip) { 
-    return /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/.test(ip); 
-}
-
-export function jsonResponse(data, status = 200) { 
-    return new Response(JSON.stringify(data), { 
-        status, 
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } 
-    }); 
-}
-
-export function handleCORS() { 
-    return new Response(null, { 
-        headers: { 
-            'Access-Control-Allow-Origin': '*', 
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 
-            'Access-Control-Allow-Headers': 'Content-Type, Authorization' 
-        } 
-    }); 
-}
-
-// 新增：檢查某個 IP 是否落在特定的 CIDR 網段內
-export function isIpInCidr(ip, cidr) {
-    try {
-        const [cidrIp, maskStr] = cidr.split('/');
-        const maskBits = parseInt(maskStr || '32');
-        const start = ipToNum(cidrIp);
-        const totalIPs = Math.pow(2, 32 - maskBits);
-        const end = start + totalIPs - 1;
-        const num = ipToNum(ip);
-        return num >= start && num <= end;
-    } catch {
-        return false;
-    }
-}
-
-// 新增：檢查 IP 是否屬於 Cloudflare 官方 IP 集
-export function isCloudflareIP(ip, cfCidrs) {
-    return cfCidrs.some(cidr => isIpInCidr(ip, cidr));
-}
-
-````
-
-## File: .github/workflows/combine-code.yml
-````yml
-name: Generate All Codebase to MD
-
-on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - 'combined_project_code.md' # 避免此檔案自身更新引發無限循環
-  workflow_dispatch: # 支援在 GitHub 網頁上手動觸發執行
-
-permissions:
-  contents: write
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Combine All Files into MD
-        run: |
-          OUT_FILE="combined_project_code.md"
-          echo "# Complete Project Codebase" > "$OUT_FILE"
-          echo "Generated on: $(date)" >> "$OUT_FILE"
-          echo "" >> "$OUT_FILE"
-
-          # 遍歷專案內的所有檔案，排除依賴、Git 歷史、打包產物及二進位檔案
-          find . -type f \
-            -not -path "*/node_modules/*" \
-            -not -path "*/.git/*" \
-            -not -path "*/dist/*" \
-            -not -name "package-lock.json" \
-            -not -name "yarn.lock" \
-            -not -name "pnpm-lock.yaml" \
-            -not -name "$OUT_FILE" \
-            -not -name "*.png" \
-            -not -name "*.jpg" \
-            -not -name "*.jpeg" \
-            -not -name "*.gif" \
-            -not -name "*.ico" \
-            -not -name "*.woff*" \
-            -not -name "*.ttf" | while read -r file; do
-              
-              # 取得相對路徑與副檔名
-              rel_path="${file#./}"
-              ext="${file##*.}"
-              
-              # 如果無副檔名，清除變數避免格式混亂
-              if [ "$ext" = "$rel_path" ]; then
-                ext=""
-              fi
-              
-              # 寫入檔案標題
-              echo "## File: $rel_path" >> "$OUT_FILE"
-              # 使用四個反單引號（````）包裹，防止內部程式碼的三個反單引號造成排版衝突
-              echo "\`\`\`\`$ext" >> "$OUT_FILE"
-              cat "$file" >> "$OUT_FILE"
-              echo "" >> "$OUT_FILE"
-              echo "\`\`\`\`" >> "$OUT_FILE"
-              echo "" >> "$OUT_FILE"
-          done
-
-      - name: Commit and Push changes
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add combined_project_code.md
-          
-          if git diff --staged --quiet; then
-            echo "No changes in codebase."
-          else
-            git commit -m "docs: auto-generate complete codebase [skip ci]"
-            git push origin main
-          fi
-
-````
-
-## File: .github/workflows/deploy.yml
-````yml
+```yaml
 name: Deploy Worker
 
 on:
@@ -1657,6 +1603,43 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+```
+
+### 步驟 3：在 GitHub 設定 Secrets
+前往您 GitHub 專案的 **Settings -> Secrets and variables -> Actions**，新增以下 Secrets：
+1. `CLOUDFLARE_API_TOKEN`：您的 Cloudflare 編輯權限 API Token。
+2. `CLOUDFLARE_ACCOUNT_ID`：您的 Cloudflare 帳戶 ID。
+3. `CF_KV_ID`：您建立的 KV 命名空間 ID。
+
+---
+
+## 🔒 敏感資料安全指引
+
+為了安全性，**請不要將您的管理密碼明文寫入 GitHub 代碼中**：
+1. 進入 Cloudflare Dashboard 的 Worker 專案頁面。
+2. 點選 **「Settings」（設定）** -> **「Variables」（變數）**。
+3. 在 **「Environment Variables」（環境變數）** 點選 **「Add variable」**：
+   * **Name**：`ADMIN_PASSWORD`
+   * **Value**：您的自訂管理員密碼
+   * **類型**：請務必點選 **「Encrypt」**（加密成密鑰，隱藏明文顯示） [3]。
+4. 點選右下角 **「Save and deploy」**（儲存並部署） [3]。
+
+````
+
+## File: wrangler.toml
+````toml
+name = "cf-worker-bestip"
+main = "src/index.js"
+compatibility_date = "2024-03-01"
+
+# KV 命名空間綁定
+[[kv_namespaces]]
+binding = "IP_STORAGE"
+id = "KV_ID_PLACEHOLDER"
+
+# ----------------- 每 6 小時定時觸發設定 -----------------
+[triggers]
+crons = ["0 */6 * * *"]  # 每 6 小時整點自動執行一次 (非常安全且節省額度的設定)
 
 ````
 
