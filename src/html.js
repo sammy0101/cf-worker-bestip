@@ -1,7 +1,7 @@
 // src/html.js
 import { VERSION, FAST_IP_COUNT, AUTO_TEST_MAX_IPS, BROWSER_TEST_MAX_IPS, COLO_MAP, CIDR_SOURCE_URLS } from './config.js';
 import { verifyAdmin, getTokenConfig } from './auth.js';
-import { getStoredIPs, getStoredSpeedIPs } from './ip.js';
+import { getStoredIPs, getStoredSpeedIPs, getStoredBrowserIPs } from './ip.js';
 
 export async function serveHTML(env, request) {
     const isLoggedIn = await verifyAdmin(request, env);
@@ -12,9 +12,25 @@ export async function serveHTML(env, request) {
     let fastIPs = [];
     if (isLoggedIn) {
         data = await getStoredIPs(env);
-        // 預設呈現後端排程/手動更新出來的最新優選結果
+        // 核心：一律以「後端排程測出」的最新 20 個優選節點 (如 LHR 倫敦) 為基礎名單
         const speedData = await getStoredSpeedIPs(env);
         fastIPs = speedData.fastIPs || [];
+
+        // 若先前測過本機下載速度，僅合併「速度」欄位數值，絕不變更後端原始機房與延遲
+        try {
+            const browserData = await getStoredBrowserIPs(env);
+            if (browserData && browserData.fastIPs && browserData.fastIPs.length > 0) {
+                const speedMap = new Map(browserData.fastIPs.map(b => [b.ip, b.speed]));
+                fastIPs.forEach(item => {
+                    if (speedMap.has(item.ip)) {
+                        item.speed = speedMap.get(item.ip);
+                    }
+                });
+                if (fastIPs.some(i => i.speed)) {
+                    fastIPs.sort((a, b) => (b.speed || 0) - (a.speed || 0));
+                }
+            }
+        } catch(e) {}
     }
     
     let sessionId = null;
@@ -318,6 +334,7 @@ export async function serveHTML(env, request) {
                     
                     <div class="button-group">
                         <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
+                        <!-- 按鈕名稱已正式修正：補上空格 -->
                         <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 優選 IP 測速</button>
                         
                         <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
@@ -629,19 +646,19 @@ export async function serveHTML(env, request) {
             btn.disabled = false; btn.innerText = '🔄 立即更新庫';
         }
 
-        // ==================== 只測後端測出的 20 個優選節點 ====================
+        // ==================== 鎖定只測後端現有優選結果 (保留原始機房，如 LHR) ====================
         async function startSpeedTest() {
             let targets = [];
 
-            // 1. 優先直接從後端 API 抓取後端自動排程優選出的 20 個結果
+            // 1. 優先直接從後端 API 讀取後端優選庫存
             try {
                 const res = await api('/fast-ips');
                 if (res && res.fastIPs && res.fastIPs.length) {
-                    targets = res.fastIPs;
+                    targets = JSON.parse(JSON.stringify(res.fastIPs));
                 }
             } catch(e) {}
 
-            // 2. 若 API 抓取失敗，回退使用畫面上已渲染的節點
+            // 2. 若 API 讀取不到，直接讀取表格目前的後端節點資訊
             if (!targets.length) {
                 const ipElements = document.querySelectorAll('.ip-item');
                 ipElements.forEach(el => {
@@ -667,7 +684,7 @@ export async function serveHTML(env, request) {
             const progressFill = document.getElementById('progress-fill');
             const statusText = document.getElementById('status-text');
 
-            addLog(\`⚡ 開始對後端優選的 \${targets.length} 個節點進行本機下載頻寬實測 (單節點 2MB)...\`, 'info');
+            addLog(\`⚡ 開始對後端優選的 \${targets.length} 個節點進行下載頻寬測速 (單節點 2MB)...\`, 'info');
             
             let finalResults = [];
             const DOWNLOAD_BYTES = 2000000; // 2MB
@@ -687,13 +704,12 @@ export async function serveHTML(env, request) {
                         if (durationSec > 0 && blob.size > 0) {
                             speedMBs = parseFloat(((blob.size / (1024 * 1024)) / durationSec).toFixed(2));
                         }
-                        const rayHeader = res.headers.get('CF-Ray');
-                        if (rayHeader) item.colo = rayHeader.split('-').pop();
                     }
                 } catch(e) {
                     speedMBs = 0;
                 }
 
+                // 核心重點：只記錄下載速率，絕對不覆蓋 item.colo 與 item.latency，完整保留後端機房 (如 LHR)
                 item.speed = speedMBs;
                 finalResults.push(item);
                 addLog(\`⚡ [\${item.colo}] \${item.ip} - \${item.latency}ms | 下載速度: \${item.speed} MB/s\`, item.speed >= 10 ? 'info' : 'normal');
@@ -702,13 +718,13 @@ export async function serveHTML(env, request) {
                 await new Promise(r => setTimeout(r, 50));
             }
 
-            // 依下載速度由高到低排序（若速度相同則依延遲由低到高）
+            // 依下載速度由高到低排序（若速度相同則依後端延遲由低到高）
             finalResults.sort((a, b) => {
                 if (b.speed !== a.speed) return b.speed - a.speed;
                 return a.latency - b.latency;
             });
 
-            // 即時重構渲染右側表格 (修正 \${item.ip} 轉義)
+            // 即時重構渲染右側表格 (保留原始機房代碼)
             let newHtml = '';
             finalResults.forEach(item => {
                 const colo = item.colo || 'UNK';
@@ -722,7 +738,7 @@ export async function serveHTML(env, request) {
             });
             document.getElementById('ip-list').innerHTML = newHtml;
 
-            // 同步上傳回存至 KV
+            // 同步保存至 KV
             try { 
                 await api('/upload-results', 'POST', { fastIPs: finalResults }); 
                 addLog('✅ 優選結果（已依下載頻寬排序）已同步至雲端 KV'); 
