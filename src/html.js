@@ -318,7 +318,7 @@ export async function serveHTML(env, request) {
                     
                     <div class="button-group">
                         <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
-                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 優選 IP測速</button>
+                        <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 優選 IP 測速</button>
                         
                         <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
                             <div class="dropdown-content">
