@@ -1,5 +1,5 @@
 # Complete Project Codebase
-Generated on: Wed Sep 23 11:12:39 UTC 2026
+Generated on: Sun Oct 25 04:42:57 UTC 2026
 
 ## File: .github/workflows/combine-code.yml
 ````yml
@@ -744,6 +744,7 @@ export async function serveHTML(env, request) {
         .tag-http { background: #fef2f2; color: #991b1b; border-color: #fee2e2; } 
         .tag-https { background: #f0f9ff; color: #075985; border-color: #e0f2fe; }
 
+        /* 五欄式佈局：機房(110px) | IP位址(1fr) | 延遲(70px) | 速度(85px) | 操作(60px) */
         .ip-table-header { 
             display: grid; 
             grid-template-columns: 110px 1fr 70px 85px 60px; 
@@ -995,7 +996,7 @@ export async function serveHTML(env, request) {
                         <button class="button" onclick="updateIPs()" id="update-btn">🔄 立即更新庫</button>
                         <button class="button button-warning" onclick="startSpeedTest()" id="speedtest-btn">⚡ 優選 IP 測速</button>
                         
-                        <!-- 已刪除冗餘的本機測速，收斂為直觀的優選與完整庫 -->
+                        <!-- 線上查看選單：收斂為優選 IP 與完整庫 -->
                         <div class="dropdown"><button class="button button-secondary">📄 線上查看 ▼</button>
                             <div class="dropdown-content">
                                 <a href="/fast-ips.txt" target="_blank">🚀 查看優選 IP</a>
@@ -1003,6 +1004,7 @@ export async function serveHTML(env, request) {
                             </div>
                         </div>
                         
+                        <!-- 複製 API 選單：收斂為優選 IP 與完整庫 -->
                         <div class="dropdown"><button class="button button-purple">🔌 複製 API 連結 ▼</button>
                             <div class="dropdown-content">
                                 <a onclick="copyApiUrl('fast')">🚀 複製優選 IP API</a>
@@ -1338,7 +1340,7 @@ export async function serveHTML(env, request) {
             const progressFill = document.getElementById('progress-fill');
             const statusText = document.getElementById('status-text');
 
-            addLog(\`⚡ 開始對優選的 \${targets.length} 個節點進行下載頻寬測速 (單節點 2MB)...\`, 'info');
+            addLog(\`⚡ 開始對後端優選的 \${targets.length} 個節點進行下載頻寬測速 (單節點 2MB)...\`, 'info');
             
             let finalResults = [];
             const DOWNLOAD_BYTES = 2000000; // 2MB
@@ -1389,7 +1391,6 @@ export async function serveHTML(env, request) {
             });
             document.getElementById('ip-list').innerHTML = newHtml;
 
-            // 直接更新回傳至核心優選資料庫 (cloudflare_fast_ips)
             try { 
                 await api('/upload-results', 'POST', { fastIPs: finalResults }); 
                 addLog('✅ 優選結果（已依下載頻寬排序）已同步至雲端 KV'); 
@@ -1402,12 +1403,30 @@ export async function serveHTML(env, request) {
             speedtestBtn.disabled = false;
         }
 
+        // 修改：只複製網址本身，不帶 https://
         function copyApiUrl(type) {
             const host = window.location.host;
             const parts = host.split('.');
             let subdomainHost = parts.length >= 3 ? (parts[0] = type, parts.join('.')) : type + '.' + host;
-            let url = 'https://' + subdomainHost;
-            navigator.clipboard.writeText(url).then(() => alert('已複製: ' + url));
+            let url = subdomainHost;
+
+            if (!navigator.clipboard) {
+                const ta = document.createElement('textarea');
+                ta.value = url;
+                ta.style.position = 'fixed';
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    alert('已複製網址: ' + url);
+                } catch (err) {
+                    alert('複製失敗，請手動複製: ' + url);
+                }
+                document.body.removeChild(ta);
+                return;
+            }
+
+            navigator.clipboard.writeText(url).then(() => alert('已複製網址: ' + url)).catch(() => alert('複製失敗'));
         }
 
         async function openSourcesModal() {
